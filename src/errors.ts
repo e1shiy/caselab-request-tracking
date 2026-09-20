@@ -51,3 +51,9 @@ export class ExternalServiceError extends AppError {
     super(message, { ...options, status: 502, code: 'EXTERNAL_API_ERROR' });
   }
 }
+
+export class RateLimitError extends AppError {
+  constructor(options: Omit<AppErrorOptions, 'status' | 'code'> = {}) {
+    super('Слишком много запросов, повторите позже', { ...options, status: 429, code: 'RATE_LIMIT_EXCEEDED' });
+  }
+}
