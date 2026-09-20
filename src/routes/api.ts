@@ -1,7 +1,10 @@
 import { Router } from 'express';
 
+import { RequestController } from '../controllers/request-controller.js';
 import type { Storage } from '../repositories/index.js';
+import { RequestService } from '../services/request-service.js';
 import { createEquipmentRouter } from './equipment.js';
+import { createRequestsRouter } from './requests.js';
 
 export function createApiRouter(storage: Storage): Router {
   const router = Router();
@@ -10,7 +13,11 @@ export function createApiRouter(storage: Storage): Router {
     res.json({ status: 'ok' });
   });
 
-  router.use('/equipment', createEquipmentRouter(storage));
+  const requestService = new RequestService(storage.requests, storage.equipment);
+  const requestController = new RequestController(requestService);
+
+  router.use('/equipment', createEquipmentRouter(storage, requestController));
+  router.use('/requests', createRequestsRouter(requestController));
 
   return router;
 }
