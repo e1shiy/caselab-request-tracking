@@ -16,7 +16,7 @@ app.use(httpLogger);
 app.use(contextMiddleware);
 
 app.use(helmet());
-app.use(cors({ origin: config.ALLOWED_ORIGIN }));
+app.use(cors({ origin: config.CORS_ORIGINS }));
 
 app.use(rateLimit({ windowMs: 60_000, limit: 100 }));
 

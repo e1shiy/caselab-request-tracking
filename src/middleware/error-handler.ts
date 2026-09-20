@@ -2,23 +2,8 @@ import type { ErrorRequestHandler } from 'express';
 
 import { logger } from '../lib/logger.js';
 
-const PROBLEM_TYPE_BASE = 'https://example.com/problems';
-
-function errStatus(err: unknown): number {
-  const candidate = (err as { status?: number; statusCode?: number } | undefined)?.status;
-  if (typeof candidate === 'number' && Number.isInteger(candidate)) return candidate;
-  const candidateCode = (err as { statusCode?: number } | undefined)?.statusCode;
-  return typeof candidateCode === 'number' && Number.isInteger(candidateCode) ? candidateCode : 500;
-}
-
-function errCode(err: unknown): string {
-  const raw = (err as { code?: string; type?: string } | undefined)?.code
-    ?? (err as { type?: string } | undefined)?.type;
-  return typeof raw === 'string' && raw.length > 0 ? raw : 'internal_error';
-}
-
-function errDetails(err: unknown): unknown {
-  return (err as { details?: unknown } | undefined)?.details;
+function isAppError(err: unknown): err is import('../errors.js').AppError {
+  return err instanceof Error && (err as { isOperational?: boolean }).isOperational === true;
 }
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
@@ -27,26 +12,39 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     return;
   }
 
-  const status = errStatus(err);
+  const status =
+    typeof (err as { status?: number } | undefined)?.status === 'number' &&
+    Number.isInteger((err as { status?: number }).status)
+      ? (err as { status: number }).status
+      : 500;
+  const code = isAppError(err)
+    ? err.code
+    : typeof (err as { code?: string } | undefined)?.code === 'string' && (err as { code: string }).code.length > 0
+      ? (err as { code: string }).code
+      : 'INTERNAL_ERROR';
   const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
+  const details = isAppError(err) ? err.details : undefined;
 
   const log = req.log ?? logger;
   if (status >= 500) {
-    log.error({ err, status }, 'request failed');
+    log.error({ err, status, requestId: req.id }, 'request failed');
   } else {
-    log.warn({ err, status }, 'request failed');
+    log.warn({ err, status, requestId: req.id }, 'request failed');
   }
 
+  const visibleMessage = status >= 500 && req.app.get('env') === 'production'
+    ? 'Внутренняя ошибка сервера'
+    : message;
+
   const body: Record<string, unknown> = {
-    type: `${PROBLEM_TYPE_BASE}/${errCode(err)}`,
-    title: status >= 500 ? 'Внутренняя ошибка сервера' : message,
-    status,
-    instance: req.originalUrl,
-    requestId: req.id,
+    error: {
+      code,
+      message: visibleMessage,
+      requestId: req.id,
+    },
   };
 
-  const details = errDetails(err);
-  if (details !== undefined) body.errors = details;
+  if (details !== undefined) (body.error as Record<string, unknown>).details = details;
 
-  res.status(status).type('application/problem+json').json(body);
+  res.status(status).json(body);
 };

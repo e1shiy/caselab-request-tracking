@@ -7,7 +7,6 @@ type RequestPart = 'body' | 'query' | 'params';
 
 interface ValidatedRequestPart {
   field: string;
-  code: string;
   message: string;
 }
 
@@ -23,7 +22,6 @@ export function validate<const S extends Partial<Record<RequestPart, ZodType>>>(
       if (!result.success) {
         const details: ValidatedRequestPart[] = result.error.issues.map((issue) => ({
           field: issue.path.length > 0 ? issue.path.join('.') : '(корень)',
-          code: issue.code,
           message: issue.message,
         }));
         next(new ValidationError(details));
