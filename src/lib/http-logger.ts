@@ -22,7 +22,7 @@ const options: Options = {
     return 'info';
   },
   autoLogging: {
-    ignore: (req) => req.url === '/health',
+    ignore: (req) => req.url === '/api/health',
   },
 };
 
