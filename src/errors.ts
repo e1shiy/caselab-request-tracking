@@ -29,8 +29,8 @@ export class ValidationError extends AppError {
 }
 
 export class NotFoundError extends AppError {
-  constructor(what = 'Ресурс') {
-    super(`${what} не найден`, { status: 404, code: 'NOT_FOUND' });
+  constructor(message = 'Ресурс не найден', options: Omit<AppErrorOptions, 'status' | 'code'> = {}) {
+    super(message, { ...options, status: 404, code: 'NOT_FOUND' });
   }
 }
 
