@@ -24,6 +24,14 @@ export class EquipmentService {
     if (query.status !== undefined) items = items.filter((item) => item.status === query.status);
     if (query.type !== undefined) items = items.filter((item) => item.type === query.type);
 
+    const { installedFrom, installedTo } = query;
+    if (installedFrom !== undefined) {
+      items = items.filter((item) => item.installedAt >= installedFrom);
+    }
+    if (installedTo !== undefined) {
+      items = items.filter((item) => item.installedAt <= installedTo);
+    }
+
     if (query.sort !== undefined) {
       const { field, order } = query.sort;
       items.sort((a, b) => {

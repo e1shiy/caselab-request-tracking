@@ -2,8 +2,10 @@ import { z } from 'zod';
 
 import { REQUEST_PRIORITIES, REQUEST_STATUSES } from '../domain/request.js';
 import {
+  emptyAsUndefined,
   idParamsSchema,
   limitSchema,
+  optionalDateFilter,
   pageSchema,
   requestPriorityFilterSchema,
   requestStatusFilterSchema,
@@ -46,22 +48,10 @@ export const requestListQuerySchema = z
   .object({
     status: requestStatusFilterSchema,
     priority: requestPriorityFilterSchema,
-    equipmentId: z.string().uuid('Некорректный идентификатор оборудования').optional(),
-    dateFrom: z
-      .string()
-      .refine(
-        (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)),
-        { message: 'dateFrom должен быть в формате YYYY-MM-DD' },
-      )
-      .optional(),
-    dateTo: z
-      .string()
-      .refine(
-        (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)),
-        { message: 'dateTo должен быть в формате YYYY-MM-DD' },
-      )
-      .optional(),
-    sort: sortSchema(REQUEST_SORT_FIELDS).optional(),
+    equipmentId: emptyAsUndefined(z.string().uuid('Некорректный идентификатор оборудования').optional()),
+    dateFrom: optionalDateFilter('dateFrom'),
+    dateTo: optionalDateFilter('dateTo'),
+    sort: sortSchema(REQUEST_SORT_FIELDS),
     page: pageSchema,
     limit: limitSchema,
   })
