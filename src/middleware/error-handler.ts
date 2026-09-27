@@ -18,11 +18,18 @@ type NormalizedError = {
   code: string;
   message: string;
   details: unknown;
+  operational: boolean;
 };
 
 function normalizeError(err: unknown): NormalizedError {
   if (isAppError(err)) {
-    return { status: err.status, code: err.code, message: err.message, details: err.details };
+    return {
+      status: err.status,
+      code: err.code,
+      message: err.message,
+      details: err.details,
+      operational: true,
+    };
   }
 
   const type = (err as { type?: string } | undefined)?.type;
@@ -36,14 +43,27 @@ function normalizeError(err: unknown): NormalizedError {
       code: 'PAYLOAD_TOO_LARGE',
       message: 'Размер тела запроса превышает допустимый лимит',
       details: undefined,
+      operational: false,
     };
   }
 
   if (type === 'entity.parse.failed' || err instanceof SyntaxError) {
-    return { status, code: 'INVALID_JSON', message: 'Некорректный JSON в теле запроса', details: undefined };
+    return {
+      status,
+      code: 'INVALID_JSON',
+      message: 'Некорректный JSON в теле запроса',
+      details: undefined,
+      operational: false,
+    };
   }
 
-  return { status, code, message: err instanceof Error ? err.message : 'Неизвестная ошибка', details: undefined };
+  return {
+    status,
+    code,
+    message: err instanceof Error ? err.message : 'Неизвестная ошибка',
+    details: undefined,
+    operational: false,
+  };
 }
 
 export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
@@ -52,7 +72,7 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
     return;
   }
 
-  const { status, code, message, details } = normalizeError(err);
+  const { status, code, message, details, operational } = normalizeError(err);
 
   const log = req.log ?? logger;
   if (status >= 500) {
@@ -62,7 +82,9 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
   }
 
   const visibleMessage =
-    status >= 500 && req.app.get('env') === 'production' ? 'Внутренняя ошибка сервера' : message;
+    !operational && status >= 500 && req.app.get('env') === 'production'
+      ? 'Внутренняя ошибка сервера'
+      : message;
 
   const body: Record<string, unknown> = {
     error: {
