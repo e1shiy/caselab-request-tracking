@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "3f2d1c44-7a3e-4f08-9c62-0b91c9e5a7d1",
     "name": "CaseLab Requests API",
-    "description": "Коллекция для сервиса учёта заявок на обслуживание оборудования. Перед запуском создайте окружение с переменной baseUrl (например http://localhost:3000). Запускайте по группам: сначала Equipment, затем Requests. Идентификаторы созданных сущностей передаются между запросами через переменные коллекции.",
+    "description": "Коллекция для сервиса учёта заявок на обслуживание оборудования. Перед запуском создайте окружение с переменной baseUrl (например http://localhost:3000). Запускайте по группам: сначала Equipment, затем Requests. Идентификаторы созданных сущностей передаются между запросами через переменные коллекции. Фикстуры (SN-001, SN-003) фиксированы, поэтому полный прогон выполняйте на чистом DATA_DIR — иначе создание оборудования вернёт 409 по дубликату серийного номера. Последний запрос расходует лимит частоты и должен идти последним. Для проверки теста 429 в переменных коллекции есть rateLimitMax (по умолчанию 100) — увеличьте его, если на сервере задан другой RATE_LIMIT_MAX.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -194,6 +194,45 @@
           ]
         },
         {
+          "name": "Битый JSON (ожидаем 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"name\": \"Незакрытый объект\" "
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/equipment",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "equipment"]
+            },
+            "description": "Некорректный синтаксис JSON. Ожидается 400, а не 422: тело не разобрано, поэтому проверка полей не выполнялась"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 400', () => pm.response.to.have.status(400));",
+                  "pm.test('код ошибки INVALID_JSON и requestId для поиска в логах', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error.code).to.equal('INVALID_JSON');",
+                  "  pm.expect(body.error.message).to.be.a('string');",
+                  "  pm.expect(body.error.requestId).to.be.a('string');",
+                  "});",
+                  "pm.test('requestId совпадает с заголовком X-Request-Id', () => {",
+                  "  pm.expect(pm.response.json().error.requestId).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Несуществующий идентификатор (ожидаем 404)",
           "request": {
             "method": "GET",
@@ -248,6 +287,50 @@
                   "  pm.expect(body.status).to.equal('maintenance');",
                   "  pm.expect(body.id).to.eql(pm.collectionVariables.get('equipmentId'));",
                   "  pm.expect(body.createdAt).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Неизвестные и служебные поля игнорируются",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"operational\",\n  \"id\": \"00000000-0000-4000-8000-000000000000\",\n  \"createdAt\": \"2000-01-01T00:00:00.000Z\",\n  \"updatedAt\": \"2000-01-01T00:00:00.000Z\",\n  \"unknownField\": \"должно быть отброшено\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "equipment", "{{equipmentId}}"]
+            },
+            "description": "Попытка подменить служебные поля и добавить неизвестное поле: применяется только status, остальное отбрасывается"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "pm.test('id не подменён', () => {",
+                  "  pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('equipmentId'));",
+                  "});",
+                  "pm.test('createdAt и updatedAt не подменены', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.createdAt).to.not.equal('2000-01-01T00:00:00.000Z');",
+                  "  pm.expect(body.updatedAt).to.not.equal('2000-01-01T00:00:00.000Z');",
+                  "});",
+                  "pm.test('неизвестное поле не попало в ответ', () => {",
+                  "  pm.expect(pm.response.json()).to.not.have.property('unknownField');",
+                  "});",
+                  "pm.test('разрешённое поле status применено', () => {",
+                  "  pm.expect(pm.response.json().status).to.equal('operational');",
                   "});"
                 ]
               }
@@ -344,12 +427,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/requests?status=&priority=&page=1&limit=20",
+              "raw": "{{baseUrl}}/api/requests?page=1&limit=20",
               "host": ["{{baseUrl}}"],
               "path": ["api", "requests"],
               "query": [
-                { "key": "status", "value": "" },
-                { "key": "priority", "value": "" },
                 { "key": "page", "value": "1" },
                 { "key": "limit", "value": "20" }
               ]
@@ -366,6 +447,74 @@
                   "  const body = pm.response.json();",
                   "  pm.expect(body.data).to.be.an('array');",
                   "  pm.expect(body.meta).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Список заявок с фильтрами и диапазоном дат",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?status=new&priority=high&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "requests"],
+              "query": [
+                { "key": "status", "value": "new" },
+                { "key": "priority", "value": "high" },
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Позитивный сценарий фильтрации: ответ 200, и все заявки соответствуют заданным фильтрам"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "pm.test('все заявки соответствуют фильтрам', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "  body.data.forEach(r => {",
+                  "    pm.expect(r.status).to.equal('new');",
+                  "    pm.expect(r.priority).to.equal('high');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Некорректный фильтр (ожидаем 422)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?status=unknown_status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "requests"],
+              "query": [{ "key": "status", "value": "unknown_status" }]
+            },
+            "description": "Пустой параметр фильтра считается незаданным, но непустое некорректное значение отклоняется"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 422', () => pm.response.to.have.status(422));",
+                  "pm.test('в details указан некорректный параметр', () => {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.error.code).to.equal('VALIDATION_ERROR');",
+                  "  pm.expect(body.error.details.map(d => d.field)).to.include('status');",
                   "});"
                 ]
               }
@@ -397,15 +546,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('код ответа 201', () => pm.response.to.have.status(201));",
-                  "const request = pm.response.json();",
-                  "pm.collectionVariables.set('requestId', request.id);",
+                  "const createdRequest = pm.response.json();",
+                  "pm.collectionVariables.set('requestId', createdRequest.id);",
                   "pm.test('структура заявки и статус new по умолчанию', () => {",
-                  "  pm.expect(request.id).to.be.a('string');",
-                  "  pm.expect(request.equipmentId).to.eql(pm.collectionVariables.get('equipmentId'));",
-                  "  pm.expect(request.status).to.equal('new');",
-                  "  pm.expect(request.priority).to.equal('high');",
-                  "  pm.expect(request).to.have.property('createdAt');",
-                  "  pm.expect(request).to.have.property('updatedAt');",
+                  "  pm.expect(createdRequest.id).to.be.a('string');",
+                  "  pm.expect(createdRequest.equipmentId).to.eql(pm.collectionVariables.get('equipmentId'));",
+                  "  pm.expect(createdRequest.status).to.equal('new');",
+                  "  pm.expect(createdRequest.priority).to.equal('high');",
+                  "  pm.expect(createdRequest).to.have.property('createdAt');",
+                  "  pm.expect(createdRequest).to.have.property('updatedAt');",
                   "});"
                 ]
               }
@@ -457,6 +606,17 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -488,6 +648,17 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -525,6 +696,17 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -556,6 +738,17 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -589,6 +782,17 @@
           },
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
@@ -614,6 +818,17 @@
             }
           },
           "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
             {
               "listen": "test",
               "script": {
@@ -741,36 +956,52 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "health"]
             },
-            "description": "Отправляет 120 запросов подряд и проверяет, что после этого лимит исчерпан. Запускать последним: расходует квоту на окно. Default-лимит — RATE_LIMIT_MAX (100)."
+            "description": "Отправляет запросы по кругу до первого 429 и проверяет, что лимит исчерпан. Запускать последним: расходует квоту на окно. Если RATE_LIMIT_MAX изменён в окружении сервера, увеличьте rateLimitMax в переменных коллекции."
           },
           "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const url = '{{baseUrl}}/api/health';",
-                  "let sent = 0;",
-                  "function flood(cb) {",
-                  "  if (sent >= 120) { cb(); return; }",
-                  "  sent++;",
-                  "  pm.sendRequest(url, () => flood(cb));",
-                  "}",
-                  "flood(() => {",
-                  "  pm.sendRequest(url, (err, res) => {",
-                  "    pm.test('код ответа 429 при превышении лимита', () => {",
-                  "      pm.expect(err).to.eql(null);",
-                  "      pm.expect(res).to.have.property('code', 429);",
-                  "    });",
-                  "    pm.test('ошибка в едином формате', () => {",
-                  "      pm.expect(res.json().error.code).to.equal('RATE_LIMIT_EXCEEDED');",
-                  "    });",
-                  "  });",
-                  "});"
-                ]
+              {
+                "listen": "test",
+                "script": {
+                  "type": "text/javascript",
+                  "exec": [
+                    "const url = pm.variables.replaceIn('{{baseUrl}}/api/health');",
+                    "const maxRequests = Number(pm.collectionVariables.get('rateLimitMax')) + 50;",
+                    "let sent = 0;",
+                    "let limited = null;",
+                    "let failure = null;",
+                    "",
+                    "function flood(cb) {",
+                    "  if (limited !== null || failure !== null || sent >= maxRequests) { cb(); return; }",
+                    "  sent++;",
+                    "  pm.sendRequest(url, (err, res) => {",
+                    "    if (err) { failure = err; return cb(); }",
+                    "    if (res.code === 429) { limited = res; return cb(); }",
+                    "    flood(cb);",
+                    "  });",
+                    "}",
+                    "",
+                    "flood(() => {",
+                    "  pm.test('лимит частоты исчерпан, получен 429', () => {",
+                    "    pm.expect(failure, 'запрос не выполнился').to.eql(null);",
+                    "    pm.expect(limited, 'ожидался 429, но все ' + sent + ' запросов прошли').to.not.eql(null);",
+                    "    pm.expect(limited.code).to.eql(429);",
+                    "  });",
+                    "  pm.test('ответ 429 в едином формате ошибки', () => {",
+                    "    if (limited === null) return;",
+                    "    const body = limited.json();",
+                    "    pm.expect(body.error.code).to.equal('RATE_LIMIT_EXCEEDED');",
+                    "    pm.expect(body.error.message).to.be.a('string');",
+                    "    pm.expect(body.error.requestId).to.be.a('string');",
+                    "  });",
+                    "  pm.test('присутствуют заголовки RateLimit-*', () => {",
+                    "    if (limited === null) return;",
+                    "    pm.expect(limited.headers.get('RateLimit-Limit'), 'заголовок RateLimit-Limit').to.be.a('string');",
+                    "  });",
+                    "});"
+                  ]
+                }
               }
-            }
-          ]
+            ]
         }
       ]
     }
@@ -791,6 +1022,10 @@
     {
       "key": "equipmentWithOpenRequestId",
       "value": ""
+    },
+    {
+      "key": "rateLimitMax",
+      "value": "100"
     }
   ]
 }
