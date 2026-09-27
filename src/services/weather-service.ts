@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 import { config } from '../config.js';
-import { ExternalServiceError } from '../errors.js';
+import type { EquipmentLocation } from '../domain/equipment.js';
+import { ExternalServiceError, NotFoundError } from '../errors.js';
+import type { EquipmentRepository } from '../repositories/index.js';
 
 export interface ForecastDay {
   date: string;
@@ -21,6 +23,13 @@ export interface WeatherRule {
 export interface Forecast {
   rule: WeatherRule;
   days: ForecastDay[];
+}
+
+export interface EquipmentForecast {
+  equipmentId: string;
+  location: EquipmentLocation;
+  rule: WeatherRule;
+  forecast: ForecastDay[];
 }
 
 const weatherResponseSchema = z
@@ -43,9 +52,25 @@ const DAILY_PARAMS = [
 ] as const;
 
 export class WeatherService {
+  constructor(private readonly equipmentRepo: EquipmentRepository) {}
+
+  async getForecastForEquipment(equipmentId: string): Promise<EquipmentForecast> {
+    const equipment = await this.equipmentRepo.findById(equipmentId);
+    if (!equipment) throw new NotFoundError('Оборудование не найдено');
+
+    const forecast = await this.getForecast(equipment.location.lat, equipment.location.lon);
+
+    return {
+      equipmentId: equipment.id,
+      location: equipment.location,
+      rule: forecast.rule,
+      forecast: forecast.days,
+    };
+  }
+
   rule(): WeatherRule {
     return {
-      maxWindKmph: config.WEATHER_MAX_WIND_MS,
+      maxWindKmph: config.WEATHER_MAX_WIND_KMPH,
       allowedPrecipitationMm: config.WEATHER_ALLOWED_PRECIPITATION_MM,
       forecastDays: config.WEATHER_FORECAST_DAYS,
     };
@@ -87,7 +112,7 @@ export class WeatherService {
         windMaxKmph,
         suitable:
           precipitationMm <= config.WEATHER_ALLOWED_PRECIPITATION_MM &&
-          windMaxKmph < config.WEATHER_MAX_WIND_MS,
+          windMaxKmph < config.WEATHER_MAX_WIND_KMPH,
       };
     });
 
