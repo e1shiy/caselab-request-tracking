@@ -17,7 +17,7 @@ export function createApiRouter(storage: Storage): Router {
 
   const requestService = new RequestService(storage.requests, storage.equipment);
   const requestController = new RequestController(requestService);
-  const weatherController = new WeatherController(storage.equipment, new WeatherService());
+  const weatherController = new WeatherController(new WeatherService(storage.equipment));
 
   router.use('/equipment', createEquipmentRouter(storage, requestController, weatherController));
   router.use('/requests', createRequestsRouter(requestController));

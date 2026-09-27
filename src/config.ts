@@ -22,7 +22,7 @@ const envSchema = z.object({
   WEATHER_API_URL: z.url().default('https://api.open-meteo.com/v1/forecast'),
   REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),
   WEATHER_FORECAST_DAYS: z.coerce.number().int().min(1).max(16).default(5),
-  WEATHER_MAX_WIND_MS: z.coerce.number().nonnegative().default(15),
+  WEATHER_MAX_WIND_KMPH: z.coerce.number().nonnegative().default(15),
   WEATHER_ALLOWED_PRECIPITATION_MM: z.coerce.number().nonnegative().default(0),
   DATA_DIR: z.string().default('./data'),
 });
