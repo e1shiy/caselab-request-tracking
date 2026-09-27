@@ -5,7 +5,9 @@ import {
   equipmentStatusFilterSchema,
   equipmentTypeFilterSchema,
   idParamsSchema,
+  isoDateSchema,
   limitSchema,
+  optionalDateFilter,
   pageSchema,
   sortSchema,
 } from './common.js';
@@ -17,12 +19,10 @@ export const locationSchema = z.object({
   lon: z.coerce.number().min(-180, 'Долгота от -180 до 180').max(180, 'Долгота от -180 до 180'),
 });
 
-export const installedAtSchema = z
-  .string()
-  .refine((value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value)), {
-    message: 'Дата установки должна быть в формате YYYY-MM-DD',
-  })
-  .refine((value) => value <= today(), { message: 'Дата установки не может быть в будущем' });
+export const installedAtSchema = isoDateSchema('Дата установки должна быть в формате YYYY-MM-DD').refine(
+  (value) => value <= today(),
+  { message: 'Дата установки не может быть в будущем' },
+);
 
 export const equipmentCreateSchema = z.object({
   name: z.string().trim().min(3, 'Название должно содержать не менее 3 символов').max(100, 'Название не более 100 символов'),
@@ -47,13 +47,23 @@ export const equipmentUpdateSchema = z
 
 const EQUIPMENT_SORT_FIELDS = ['name', 'type', 'status', 'serialNumber', 'installedAt', 'createdAt'] as const;
 
-export const equipmentListQuerySchema = z.object({
-  status: equipmentStatusFilterSchema,
-  type: equipmentTypeFilterSchema,
-  sort: sortSchema(EQUIPMENT_SORT_FIELDS).optional(),
-  page: pageSchema,
-  limit: limitSchema,
-});
+export const equipmentListQuerySchema = z
+  .object({
+    status: equipmentStatusFilterSchema,
+    type: equipmentTypeFilterSchema,
+    installedFrom: optionalDateFilter('installedFrom'),
+    installedTo: optionalDateFilter('installedTo'),
+    sort: sortSchema(EQUIPMENT_SORT_FIELDS),
+    page: pageSchema,
+    limit: limitSchema,
+  })
+  .refine(
+    (value) =>
+      value.installedFrom === undefined ||
+      value.installedTo === undefined ||
+      value.installedFrom <= value.installedTo,
+    { message: 'installedFrom не может быть позже installedTo', path: ['installedFrom'] },
+  );
 
 export type EquipmentCreateInput = z.infer<typeof equipmentCreateSchema>;
 export type EquipmentUpdateInput = z.infer<typeof equipmentUpdateSchema>;
