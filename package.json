@@ -17,6 +17,7 @@
     "db:rollback": "tsx src/db/cli/migrate.ts down",
     "db:seed": "tsx src/db/cli/seed.ts",
     "db:reset": "tsx src/db/cli/migrate.ts reset",
+    "db:rollback-demo": "tsx src/db/cli/rollback-demo.ts",
     "db:verify": "tsx src/db/cli/verify-schema.ts"
   },
   "dependencies": {
