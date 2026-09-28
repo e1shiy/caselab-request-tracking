@@ -35,6 +35,11 @@ export class RequestController {
     res.json(await this.service.getById(id));
   });
 
+  history = asyncHandler(async (req, res) => {
+    const { id } = req.valid.params as IdParams;
+    res.json(await this.service.history(id));
+  });
+
   update = asyncHandler(async (req, res) => {
     const { id } = req.valid.params as IdParams;
     const body = req.valid.body as RequestUpdateInput;

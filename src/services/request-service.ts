@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import type { MaintenanceRequest, RequestStatus } from '../domain/request.js';
+import type { RequestStatusHistoryEntry } from '../domain/status-history.js';
 import { ConflictError, NotFoundError } from '../errors.js';
 import type { EquipmentRepository, RequestRepository } from '../repositories/index.js';
 import type { Transaction, TransactionRunner } from '../repositories/common.js';
@@ -56,6 +57,13 @@ export class RequestService {
 
   async getById(id: string): Promise<RequestCard> {
     return this.requireCard(id);
+  }
+
+  async history(id: string): Promise<{ data: RequestStatusHistoryEntry[] }> {
+    const request = await this.requestRepo.findById(id);
+    if (!request) throw new NotFoundError('Заявка не найдена');
+
+    return { data: await this.requestRepo.listHistory(id) };
   }
 
   async create(input: RequestCreateInput): Promise<MaintenanceRequest> {
