@@ -90,3 +90,4 @@ export const equipmentStatusFilterSchema = emptyAsUndefined(z.enum(EQUIPMENT_STA
 export const equipmentTypeFilterSchema = emptyAsUndefined(z.enum(EQUIPMENT_TYPES).optional());
 export const requestStatusFilterSchema = emptyAsUndefined(z.enum(REQUEST_STATUSES).optional());
 export const requestPriorityFilterSchema = emptyAsUndefined(z.enum(REQUEST_PRIORITIES).optional());
+export type IdParams = z.infer<typeof idParamsSchema>;
