@@ -1,7 +1,8 @@
 import type { Equipment, EquipmentCard } from '../../domain/equipment.js';
 import type { MaintenanceRequest } from '../../domain/request.js';
+import type { RequestCard } from '../request-repository.js';
 import type { RequestStatusHistoryEntry } from '../../domain/status-history.js';
-import type { AssigneeView } from '../../domain/technician.js';
+import type { AssigneeView, Technician } from '../../domain/technician.js';
 
 type EquipmentRow = {
   id: string;
@@ -111,24 +112,31 @@ export function toHistoryEntry(row: {
   };
 }
 
-export function toAssigneeView(row: {
+export type AssigneeRow = {
   requestId: string;
   technicianId: string;
   role: AssigneeView['role'];
   plannedHours: number | null;
   assignedAt: Date;
-  fullName: string;
-  specialization: string;
-  personnelNumber: string;
-}): AssigneeView {
+  technician: Pick<Technician, 'fullName' | 'specialization' | 'personnelNumber'>;
+};
+
+export function toAssigneeView(row: AssigneeRow): AssigneeView {
   return {
     requestId: row.requestId,
     technicianId: row.technicianId,
     role: row.role,
     plannedHours: row.plannedHours,
     assignedAt: iso(row.assignedAt),
-    fullName: row.fullName,
-    specialization: row.specialization,
-    personnelNumber: row.personnelNumber,
+    fullName: row.technician.fullName,
+    specialization: row.technician.specialization,
+    personnelNumber: row.technician.personnelNumber,
   };
+}
+
+export type RequestCardRow = RequestRow & { assignees?: AssigneeRow[] };
+
+export function toRequestCard(row: RequestCardRow): RequestCard {
+  const { assignees, ...attributes } = row;
+  return { ...toRequest(attributes), assignees: (assignees ?? []).map(toAssigneeView) };
 }

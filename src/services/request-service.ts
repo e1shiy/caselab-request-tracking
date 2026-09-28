@@ -37,6 +37,7 @@ export class RequestService {
       sort: query.sort,
       page: query.page,
       limit: query.limit,
+      offset: query.offset,
     });
 
     return { data: rows, meta: { total, page: query.page, limit: query.limit } };

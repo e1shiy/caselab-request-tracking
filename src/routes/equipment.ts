@@ -5,7 +5,7 @@ import type { RequestController } from '../controllers/request-controller.js';
 import type { WeatherController } from '../controllers/weather-controller.js';
 import { validate } from '../middleware/validate.js';
 import type { Storage } from '../repositories/index.js';
-import { idParamsSchema } from '../schemas/common.js';
+import { PAGINATION_FIELDS, idParamsSchema } from '../schemas/common.js';
 import {
   equipmentCreateSchema,
   equipmentListQuerySchema,
@@ -24,11 +24,18 @@ export function createEquipmentRouter(
 
   const router = Router();
 
-  router.get('/', validate({ query: equipmentListQuerySchema }), controller.list);
+  router.get(
+    '/',
+    validate({ query: equipmentListQuerySchema }, { rangeFields: PAGINATION_FIELDS }),
+    controller.list,
+  );
   router.post('/', validate({ body: equipmentCreateSchema }), controller.create);
   router.get(
     '/:id/requests',
-    validate({ params: idParamsSchema, query: requestListQuerySchema }),
+    validate(
+      { params: idParamsSchema, query: requestListQuerySchema },
+      { rangeFields: PAGINATION_FIELDS },
+    ),
     requestController.listByEquipment,
   );
   router.get('/:id/weather', validate({ params: idParamsSchema }), weatherController.getForecast);

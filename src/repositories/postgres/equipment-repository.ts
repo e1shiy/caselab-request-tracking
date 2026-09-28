@@ -8,6 +8,7 @@ import { pagination } from '../common.js';
 import type { Page } from '../common.js';
 import { withDbErrorTranslation } from '../db-errors.js';
 import type { EquipmentListParams, EquipmentRepository } from '../equipment-repository.js';
+import { equipmentColumns, equipmentPassportColumns } from './attributes.js';
 import { toEquipment, toEquipmentCard } from './mappers.js';
 import type { PassportRow } from './mappers.js';
 
@@ -37,7 +38,7 @@ export class PostgresEquipmentRepository implements EquipmentRepository {
 
   async list(params: EquipmentListParams, transaction?: Transaction): Promise<Page<Equipment>> {
     const where = buildWhere(params);
-    const { offset, limit } = pagination(params.page, params.limit);
+    const { offset, limit } = pagination(params.page, params.limit, params.offset);
 
     const order: [string, 'ASC' | 'DESC'][] = [];
     if (params.sort) {
@@ -49,6 +50,7 @@ export class PostgresEquipmentRepository implements EquipmentRepository {
 
     const [rows, total] = await Promise.all([
       EquipmentModel.findAll({
+        attributes: [...equipmentColumns],
         where,
         order,
         offset,
@@ -63,13 +65,20 @@ export class PostgresEquipmentRepository implements EquipmentRepository {
   }
 
   async findById(id: string, transaction?: Transaction): Promise<Equipment | null> {
-    const row = await EquipmentModel.findByPk(id, { transaction, raw: true });
+    const row = await EquipmentModel.findByPk(id, {
+      attributes: [...equipmentColumns],
+      transaction,
+      raw: true,
+    });
     return row ? toEquipment(row) : null;
   }
 
   async findCardById(id: string, transaction?: Transaction): Promise<EquipmentCard | null> {
     const row = await EquipmentModel.findByPk(id, {
-      include: [{ model: EquipmentPassportModel, as: 'passport' }],
+      attributes: [...equipmentColumns],
+      include: [
+        { model: EquipmentPassportModel, as: 'passport', attributes: [...equipmentPassportColumns] },
+      ],
       transaction,
     });
     if (!row) return null;
@@ -130,7 +139,11 @@ export class PostgresEquipmentRepository implements EquipmentRepository {
       async () => {
         const [count] = await EquipmentModel.update(changes, { where: { id }, transaction });
         if (count === 0) return null;
-        const row = await EquipmentModel.findByPk(id, { transaction, raw: true });
+        const row = await EquipmentModel.findByPk(id, {
+          attributes: [...equipmentColumns],
+          transaction,
+          raw: true,
+        });
         return row ? toEquipment(row) : null;
       },
     );

@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ZodType } from 'zod';
 
-import { ValidationError } from '../errors.js';
+import { BadRequestError, ValidationError } from '../errors.js';
 
 type RequestPart = 'body' | 'query' | 'params';
 
@@ -10,7 +10,14 @@ interface ValidatedRequestPart {
   message: string;
 }
 
-export function validate<const S extends Partial<Record<RequestPart, ZodType>>>(schemas: S) {
+export interface ValidateOptions {
+  rangeFields?: readonly string[];
+}
+
+export function validate<const S extends Partial<Record<RequestPart, ZodType>>>(
+  schemas: S,
+  options: ValidateOptions = {},
+) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     req.valid = {};
 
@@ -24,7 +31,13 @@ export function validate<const S extends Partial<Record<RequestPart, ZodType>>>(
           field: issue.path.length > 0 ? issue.path.join('.') : '(корень)',
           message: issue.message,
         }));
-        next(new ValidationError(details));
+        const rangeFields = options.rangeFields ?? [];
+        const outOfRange = rangeFields.length > 0 && details.every((detail) => rangeFields.includes(detail.field));
+        next(
+          outOfRange
+            ? new BadRequestError('Параметры пагинации вне допустимого диапазона', { details })
+            : new ValidationError(details),
+        );
         return;
       }
 
