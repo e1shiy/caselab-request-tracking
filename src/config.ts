@@ -25,6 +25,20 @@ const envSchema = z.object({
   WEATHER_MAX_WIND_KMPH: z.coerce.number().nonnegative().default(15),
   WEATHER_ALLOWED_PRECIPITATION_MM: z.coerce.number().nonnegative().default(0),
   DATA_DIR: z.string().default('./data'),
+  DB_HOST: z.string().min(1).default('localhost'),
+  DB_PORT: z.coerce.number().int().min(1).max(65_535).default(5432),
+  DB_NAME: z.string().min(1).default('appdb'),
+  DB_USER: z.string().min(1).default('app_rw'),
+  DB_PASSWORD: z.string().default(''),
+  DB_POOL_MAX: z.coerce.number().int().positive().max(100).default(10),
+  DB_POOL_IDLE_MS: z.coerce.number().int().positive().default(30_000),
+  DB_POOL_ACQUIRE_MS: z.coerce.number().int().positive().default(5_000),
+  DB_LOG_QUERIES: z.stringbool().default(false),
+  DB_CONNECT_RETRIES: z.coerce.number().int().positive().max(100).default(10),
+  DB_RETRY_BASE_DELAY_MS: z.coerce.number().int().positive().max(10_000).default(500),
+  DB_MIGRATION_USER: z.string().min(1).default('postgres'),
+  DB_MIGRATION_PASSWORD: z.string().default(''),
+  DEFAULT_AUTHOR: z.string().min(1).default('system'),
 });
 
 const parsed = envSchema.safeParse(process.env);

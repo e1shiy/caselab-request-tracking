@@ -11,7 +11,12 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --enable-source-maps dist/index.js",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:migrate": "tsx src/db/cli/migrate.ts up",
+    "db:migrate:status": "tsx src/db/cli/migrate.ts status",
+    "db:rollback": "tsx src/db/cli/migrate.ts down",
+    "db:reset": "tsx src/db/cli/migrate.ts reset",
+    "db:verify": "tsx src/db/cli/verify-schema.ts"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -19,15 +24,19 @@
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
     "helmet": "^8.3.0",
+    "pg": "^8.23.0",
     "pino": "^10.3.1",
     "pino-http": "^11.0.0",
     "pino-pretty": "^13.1.3",
+    "sequelize": "^6.37.8",
+    "umzug": "^3.8.3",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
