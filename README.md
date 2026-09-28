@@ -1,45 +1,81 @@
 # Сервис учёта заявок на обслуживание оборудования
 
 REST API на Express для учёта заявок на техническое обслуживание оборудования
-производственной площадки (ветропарка). Сервис:
+производственных площадок (ветропарка). Данные хранятся в PostgreSQL.
 
-- ведёт справочник оборудования и заявки на его обслуживание;
-- контролирует жизненный цикл заявки по таблице допустимых переходов статусов;
-- позволяет оценить погодные условия на объекте и пригодность «окна» для
-  наружных работ (модуль из Кейса 1, внешний API open-meteo).
+Сервис:
 
-Данные хранятся в JSON-файлах (`data/`) и доступны исключительно через слой
-репозиториев, поэтому на Неделе 3 источник данных можно заменить на PostgreSQL
-(Sequelize) без изменений в сервисах и контроллерах.
+- ведёт справочник площадок, оборудования, паспортов и специалистов;
+- принимает и сопровождает заявки на обслуживание по таблице допустимых переходов
+  статусов;
+- назначает бригаду исполнителей и хранит append-only журнал переходов статуса;
+- отдаёт сводку по площадке и отчёт по нагрузке на оборудование;
+- оценивает погодные условия на объекте и пригодность «окна» для наружных работ
+  (модуль из Кейса 1, внешний API open-meteo).
 
-## Требования к окружению
+Доступ к данным идёт только через слой репозиториев: `маршруты → контроллеры →
+сервисы → репозитории`. JSON-хранилище прошлой недели заменено на PostgreSQL
+(Sequelize + umzug); контроллеры и бизнес-логика при этом не менялись.
 
-- Node.js ≥ 18 (используются глобальные `fetch` и `AbortSignal.timeout`);
-- npm.
+## Стек
 
-## Установка и запуск
+- Node.js ≥ 18 (используются глобальные `fetch` и `AbortSignal.timeout`), TypeScript, npm;
+- Express 5, zod 4, pino (+ pino-http, pino-pretty);
+- PostgreSQL 18 в Docker, Sequelize 6, umzug 3, pg 8;
+- express-rate-limit, helmet, cors.
+
+## Быстрый старт с нуля
 
 ```bash
-npm install
-
-# переменные окружения (опционально, есть значения по умолчанию)
+# 1. Переменные окружения: значения по умолчанию локальные
 cp .env.example .env
 
-# разработка — tsx watch с перезапуском
-npm run dev
+# 2. Зависимости
+npm install
 
-# сборка и запуск из dist
+# 3. PostgreSQL: поднимается контейнер с томом pgdata,
+#    роль приложения app_rw создаётся при инициализации кластера
+docker compose up -d db
+docker compose ps          # дождаться статуса healthy
+
+# 4. Схема: 9 миграций создают enum-типы, 7 таблиц, индексы, триггер и права
+npm run db:migrate
+
+# 5. Сверка моделей Sequelize со схемой (7 таблиц)
+npm run db:verify
+
+# 6. Демо-данные (идемпотентно: повторный запуск добавляет 0 строк)
+npm run db:seed
+
+# 7. Сборка и запуск
 npm run build
-npm start
+npm start                  # http://localhost:3000
 
-# проверка типов
-npm run typecheck
+# проверка доступности
+curl localhost:3000/api/health     # {"status":"ok"}
 ```
 
-Сервер по умолчанию поднимается на `0.0.0.0:3000`. Проверка доступности:
-`GET /api/health` → `{"status":"ok"}`.
+Полезные команды разработки:
+
+```bash
+npm run dev                 # tsx watch с перезапуском
+npm run typecheck           # tsc --noEmit
+npm run db:migrate:status   # какие миграции применены, какие ожидают
+npm run db:rollback         # откат последней миграции
+npm run db:reset            # откат всех миграций (схема пуста)
+npm run db:rollback-demo    # демонстрация отката транзакций
+```
+
+> Полный прогон коллекции Postman идёт по фиксированным серийным номерам
+> (`SN-001`, `SN-003`, `DEMO-*`). Запускайте его на чистой базе:
+> `npm run db:reset && npm run db:migrate && npm run db:seed`.
+> Сценарий 429 расходует квоту частоты, поэтому коллекцию нельзя гонять
+> дважды подряд без перезапуска сервера.
 
 ## Переменные окружения
+
+Значения читаются один раз при старте (zod-схема в `src/config.ts`); при
+некорректном значении процесс падает с перечислением проблем.
 
 | Переменная | По умолчанию | Описание |
 | --- | --- | --- |
@@ -47,46 +83,374 @@ npm run typecheck
 | `HOST` | `0.0.0.0` | Адрес привязки |
 | `PORT` | `3000` | Порт |
 | `LOG_LEVEL` | `info` | `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` |
-| `CORS_ORIGINS` | `http://localhost:3000,http://localhost:8080` | Список разрешённых источников через запятую |
+| `CORS_ORIGINS` | `http://localhost:3000,http://localhost:8080` | Разрешённые источники через запятую |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Окно ограничения частоты запросов (мс) |
-| `RATE_LIMIT_MAX` | `100` | Максимум запросов в окне |
+| `RATE_LIMIT_MAX` | `100` | Максимум запросов в окно |
 | `BODY_LIMIT` | `100kb` | Максимальный размер тела запроса |
 | `WEATHER_API_URL` | `https://api.open-meteo.com/v1/forecast` | Базовый URL погодного API |
 | `REQUEST_TIMEOUT_MS` | `5000` | Таймаут обращения к погодному API (мс) |
 | `WEATHER_FORECAST_DAYS` | `5` | Число дней прогноза (1–16) |
-| `WEATHER_MAX_WIND_KMPH` | `15` | Порог максимальной скорости ветра, км/ч (open-meteo отдаёт ветер в км/ч) |
-| `WEATHER_ALLOWED_PRECIPITATION_MM` | `0` | Допустимое количество осадков за день, «мм» |
-| `DATA_DIR` | `./data` | Каталог JSON-файлов хранилища |
+| `WEATHER_MAX_WIND_KMPH` | `15` | Порог максимальной скорости ветра, км/ч |
+| `WEATHER_ALLOWED_PRECIPITATION_MM` | `0` | Допустимое количество осадков за день, мм |
+| `DB_HOST` | `localhost` | Хост PostgreSQL |
+| `DB_PORT` | `5432` | Порт PostgreSQL |
+| `DB_NAME` | `appdb` | Имя базы |
+| `DB_USER` | `app_rw` | Роль приложения: только DML |
+| `DB_PASSWORD` | — | Пароль роли приложения |
+| `DB_POOL_MAX` | `10` | Максимум соединений в пуле |
+| `DB_POOL_IDLE_MS` | `30000` | Время жизни простоя соединения (мс) |
+| `DB_POOL_ACQUIRE_MS` | `5000` | Таймаут получения соединения из пула (мс) |
+| `DB_LOG_QUERIES` | `false` | Логировать SQL на уровне `debug` |
+| `DB_CONNECT_RETRIES` | `10` | Сколько раз ждать БД при старте |
+| `DB_RETRY_BASE_DELAY_MS` | `500` | Базовая задержка между попытками (мс) |
+| `DB_MIGRATION_USER` | `postgres` | Роль с правом менять схему: только `db:migrate` и `db:seed` |
+| `DB_MIGRATION_PASSWORD` | — | Пароль роли миграций |
+| `DEFAULT_AUTHOR` | `system` | Значение по умолчанию для `author` и `changed_by` |
 
-## Модель данных
+`DATA_DIR` из прошлой недели больше не используется: JSON-хранилище удалено.
 
-### Оборудование (`equipment`)
+## База данных
 
-| Поле | Тип | Правила |
+### Роли и доступ
+
+| Роль | Права | Кто использует |
 | --- | --- | --- |
-| `id` | string (uuid) | генерируется сервером, не изменяемо |
-| `name` | string | 3–100 символов, обязательное |
-| `type` | enum | `turbine` \| `inverter` \| `sensor` \| `substation` |
-| `serialNumber` | string | уникально в пределах системы |
-| `location` | object | `{ lat, lon }` — широта/долгота |
-| `status` | enum | `operational` \| `maintenance` \| `fault` \| `decommissioned` (по умолчанию `operational`) |
-| `installedAt` | string (ISO-дата) | не может быть в будущем |
-| `createdAt` / `updatedAt` | string (ISO) | проставляются сервером, не изменяемы |
+| `DB_MIGRATION_USER` (`postgres`) | суперпользователь, DDL | `db:migrate`, `db:seed`, `db:reset`, `db:verify` |
+| `DB_USER` (`app_rw`) | `CONNECT`, `USAGE` на схеме и типах, `SELECT/INSERT/UPDATE/DELETE` на таблицах | сервер приложения, `db:seed`, `db:rollback-demo` |
 
-### Заявка на обслуживание (`request`)
+Роль `app_rw` создаётся при первой инициализации кластера (`db/init`) и не имеет
+права `CREATE` на схеме `public`, поэтому `create table` из приложения невозможен:
 
-| Поле | Тип | Правила |
+```
+ERROR:  permission denied for schema public
+```
+
+Права выдаются и повторно фиксируются миграцией
+`20260928000900-grant-app-role-privileges.ts`: она делает `GRANT` для уже
+существующих таблиц и `ALTER DEFAULT PRIVILEGES` для будущих, поэтому
+`db:seed` от имени `app_rw` работает без дополнительных настроек. `down` этой
+миграции отзывает и текущие, и будущие права.
+
+Пароли в репозитории отсутствуют: в git лежит только `.env.example`, `.env`
+в `.gitignore`. Compose подставляет `DB_*` в переменные `POSTGRES_*` и
+`APP_DB_*`, поэтому `.env` — единственный источник credentials.
+
+### Модель данных
+
+Семь таблиц в третьей нормальной форме. Аномалии вставки/обновления/удаления
+устранены: справочники вынесены отдельно, повторяющиеся группы хранятся в
+собственных таблицах, связи many-to-many — через таблицу-связь.
+
+```mermaid
+erDiagram
+  SITES ||--o{ EQUIPMENT : "equipment.site_id → sites.id, ON DELETE RESTRICT"
+  EQUIPMENT ||--o| EQUIPMENT_PASSPORTS : "equipment_passports.equipment_id → equipment.id, ON DELETE CASCADE"
+  EQUIPMENT ||--o{ MAINTENANCE_REQUESTS : "maintenance_requests.equipment_id → equipment.id, ON DELETE CASCADE"
+  MAINTENANCE_REQUESTS ||--o{ REQUEST_STATUS_HISTORY : "request_status_history.request_id → maintenance_requests.id, ON DELETE CASCADE"
+  MAINTENANCE_REQUESTS ||--o{ REQUEST_ASSIGNEES : "request_assignees.request_id → maintenance_requests.id, ON DELETE CASCADE"
+  TECHNICIANS ||--o{ REQUEST_ASSIGNEES : "request_assignees.technician_id → technicians.id, ON DELETE RESTRICT"
+
+  SITES {
+    uuid id PK
+    text name
+    text code UK
+    text region
+    double precision latitude
+    double precision longitude
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  EQUIPMENT {
+    uuid id PK
+    uuid site_id FK "nullable"
+    text name
+    equipment_type type
+    text serial_number UK
+    double precision latitude
+    double precision longitude
+    equipment_status status
+    date installed_at
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  EQUIPMENT_PASSPORTS {
+    uuid equipment_id "PK, FK"
+    text manufacturer
+    text model
+    double precision rated_power_kw
+    date last_verified_at "nullable"
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  TECHNICIANS {
+    uuid id PK
+    text full_name
+    text specialization
+    text personnel_number UK
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  MAINTENANCE_REQUESTS {
+    uuid id PK
+    uuid equipment_id FK
+    text title
+    text description
+    request_priority priority
+    request_status status
+    timestamptz planned_at "nullable"
+    text author
+    timestamptz closed_at "nullable"
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  REQUEST_STATUS_HISTORY {
+    uuid id PK
+    uuid request_id FK
+    request_status previous_status "nullable"
+    request_status new_status
+    text changed_by "nullable"
+    text comment "nullable"
+    timestamptz changed_at
+  }
+  REQUEST_ASSIGNEES {
+    uuid request_id "PK, FK"
+    uuid technician_id "PK, FK"
+    assignee_role role
+    double precision planned_hours "nullable"
+    timestamptz assigned_at
+  }
+```
+
+- **`sites`** — площадки. `code` уникален, есть индекс по `region`.
+- **`equipment`** — оборудование площадки. `site_id` **nullable**: единица
+  техники может существовать вне площадки (в сиде так оставлена подстанция
+  `DEMO-SS-09`). `serial_number` уникален, координаты проверяются `CHECK`.
+- **`equipment_passports`** — паспорт 1:1 к оборудованию (первичный ключ и
+  одновременно внешний). `rated_power_kw > 0`.
+- **`technicians`** — специалисты, `personnel_number` уникален.
+- **`maintenance_requests`** — заявки. `status` по умолчанию `new`;
+  `CHECK`-ограничение связывает статус и `closed_at`.
+- **`request_status_history`** — журнал переходов. Первая запись заявки имеет
+  `previous_status = NULL`.
+- **`request_assignees`** — бригада заявки, составная PK
+  `(request_id, technician_id)` и частичный уникальный индекс «не больше одного
+  lead на заявку».
+
+### Нормализация и денормализация
+
+Таблицы находятся в 3Н: у них есть первичные ключи, все зависимости — только от
+ключа, нет транзитивных зависимостей и частичных зависимостей от составного
+ключа. Справочник специалистов отделён от заявок, поэтому ФИО и табельный
+номер хранятся один раз, а роли и плановые часы — в таблице-связи.
+
+Осознанные отступления от 3Н, которых требует предметная область:
+
+- **`equipment.latitude` / `equipment.longitude`** дублируют координаты
+  площадки. Точка установки — физическая характеристика самой единицы техники
+  (турбину могли переставить внутри площадки), а модуль погоды обязан отвечать
+  без дополнительного `JOIN` к `sites`. Значения не синхронизируются
+  автоматически: это снимок на момент создания/обновления оборудования.
+  В сиде координаты площадки и стоящего на ней оборудования совпадают.
+- **`request_status_history`** — денормализованный журнал: он дублирует статус
+  заявки, иначе историю нельзя было бы показать. Компромисс описан в разделе
+  «Отклонения».
+
+### Типы, ключи, ограничения
+
+Пять пользовательских enum-типов создаются первой миграцией и используются
+моделями Sequelize через `DataTypes.ENUM`:
+
+| Тип | Значения |
+| --- | --- |
+| `equipment_type` | `turbine`, `inverter`, `sensor`, `substation` |
+| `equipment_status` | `operational`, `maintenance`, `fault`, `decommissioned` |
+| `request_priority` | `low`, `medium`, `high`, `critical` |
+| `request_status` | `new`, `in_progress`, `done`, `rejected` |
+| `assignee_role` | `lead`, `member` |
+
+Ограничения целостности:
+
+| Таблица | Ограничение |
+| --- | --- |
+| `sites` | `UNIQUE (code)`, `CHECK` на широту/долготу |
+| `equipment` | `UNIQUE (serial_number)`, `CHECK` на широту/долготу, `FK site_id → sites(id) ON DELETE RESTRICT` |
+| `equipment_passports` | `PK (equipment_id)`, `CHECK (rated_power_kw > 0)`, `FK → equipment(id) ON DELETE CASCADE` |
+| `technicians` | `UNIQUE (personnel_number)` |
+| `maintenance_requests` | `CHECK (status IN ('done','rejected') = (closed_at IS NOT NULL))`, `FK equipment_id → equipment(id) ON DELETE CASCADE` |
+| `request_status_history` | `CHECK (previous_status IS NULL OR previous_status <> new_status)`, триггер `request_status_history_no_update`, `FK → maintenance_requests(id) ON DELETE CASCADE` |
+| `request_assignees` | `PK (request_id, technician_id)`, `CHECK (planned_hours IS NULL OR planned_hours >= 0)`, частичный `UNIQUE (request_id) WHERE role = 'lead'`, `FK → maintenance_requests(id) ON DELETE CASCADE`, `FK → technicians(id) ON DELETE RESTRICT` |
+
+Индексы:
+
+| Таблица | Индексы |
+| --- | --- |
+| `sites` | `sites_region_idx` |
+| `equipment` | `equipment_site_id_idx`, `equipment_status_idx`, `equipment_type_idx`, уникальный по `serial_number` |
+| `technicians` | `technicians_specialization_idx`, уникальный по `personnel_number` |
+| `maintenance_requests` | `maintenance_requests_equipment_id_idx`, `_status_idx`, `_priority_idx`, `_created_at_idx (DESC)` |
+| `request_status_history` | `request_status_history_request_changed_idx (request_id, changed_at DESC)`, `request_status_history_changed_at_idx (changed_at DESC)` |
+| `request_assignees` | `request_assignees_single_lead_idx` (частичный уникальный), `request_assignees_technician_id_idx` |
+
+### Время и часовые пояса
+
+- Все метки времени — `timestamptz` (`created_at`, `updated_at`, `planned_at`,
+  `closed_at`, `assigned_at`, `changed_at`); `installed_at` и
+  `last_verified_at` — `date`, потому что это календарные даты без времени.
+- Соединения открываются с `options: '-c timezone=UTC'`, поэтому
+  `timestamptz` читается и пишется в UTC независимо от TZ хоста и контейнера;
+  API отдаёт ISO-8601 с `Z`.
+- Типы `DATE`, `NUMERIC` и `INT8` переопределены через `pg.types.setTypeParser`:
+  `DATE` приходит строкой `YYYY-MM-DD` (иначе pg-драйвер сдвигает дату на сутки
+  при локальной зоне), `NUMERIC` и `INT8` — числами (иначе строки в JSON).
+
+### Правила удаления
+
+| Действие | Что происходит |
+| --- | --- |
+| Удаление оборудования | `RESTRICT`, если на него ссылаются заявки; API дополнительно запрещает удаление при открытых заявках (`new`, `in_progress`) — **409**. Паспорт удаляется каскадом |
+| Удаление заявки | Журнал переходов и назначения удаляются каскадом; оборудование и площадка остаются |
+| Удаление площадки | `RESTRICT` при наличии оборудования. Отдельного эндпоинта удаления площадок нет |
+| Удаление специалиста | `RESTRICT` при назначениях. Отдельного эндпоинта удаления специалистов нет |
+
+### Миграции
+
+Файлы `src/db/migrations/*.ts` выполняет umzug; каждый содержит `up` и `down`.
+Схема версионируется таблицей `SequelizeMeta`.
+
+| Миграция | `up` | `down` |
 | --- | --- | --- |
-| `id` | string (uuid) | генерируется сервером, не изменяемо |
-| `equipmentId` | string (uuid) | ссылка на существующее оборудование |
-| `title` | string | 5–120 символов, обязательное |
-| `description` | string | до 2000 символов |
-| `priority` | enum | `low` \| `medium` \| `high` \| `critical` (по умолчанию `medium`) |
-| `status` | enum | `new` \| `in_progress` \| `done` \| `rejected` (по умолчанию `new`) |
-| `plannedAt` | string (ISO datetime) | необязательное, можно очистить (`null`) |
-| `createdAt` / `updatedAt` | string (ISO) | проставляются сервером, не изменяемы |
+| `20260928000100-create-enum-types` | 5 типов `CREATE TYPE` | `DROP TYPE` в обратном порядке |
+| `20260928000200-create-sites` | таблица `sites`, индекс по `region` | `DROP TABLE` |
+| `20260928000300-create-equipment` | таблица `equipment`, 3 индекса, 2 `CHECK`, уникальность | `DROP TABLE` |
+| `20260928000400-create-equipment-passports` | таблица `equipment_passports` | `DROP TABLE` |
+| `20260928000500-create-technicians` | таблица `technicians`, индекс, уникальность | `DROP TABLE` |
+| `20260928000600-create-maintenance-requests` | таблица `maintenance_requests`, 4 индекса, `CHECK` статуса и `closed_at` | `DROP TABLE` |
+| `20260928000700-create-request-status-history` | таблица журнала, 2 индекса, функция и триггер `BEFORE UPDATE` | `DROP TRIGGER`, `DROP FUNCTION`, `DROP TABLE` |
+| `20260928000800-create-request-assignees` | таблица `request_assignees`, частичный уникальный индекс, `CHECK` | `DROP TABLE` |
+| `20260928000900-grant-app-role-privileges` | `GRANT` роли приложения + `ALTER DEFAULT PRIVILEGES` | `REVOKE` и отзыв default privileges |
 
-### Схема переходов статусов заявки
+```bash
+npm run db:migrate          # применить неприменённые
+npm run db:migrate:status   # список применённых и ожидающих
+npm run db:rollback         # откатить последнюю (атомарно, в транзакции)
+npm run db:reset            # откатить все (схема пуста)
+```
+
+`down` откатывает строго то, что сделал соответствующий `up` (включая триггер и
+функцию), поэтому цепочка `up → down → up` воспроизводит то же состояние схемы.
+
+`request_status_history_no_update` — триггер `BEFORE UPDATE FOR EACH ROW`,
+поднимающий исключение с `ERRCODE = 23514`:
+
+```
+ERROR:  request_status_history is append-only: UPDATE is forbidden
+```
+
+### Демонстрация отката транзакций
+
+`npm run db:rollback-demo` — самопроверяющийся сценарий, который создаёт
+фикстуру (площадка, оборудование, специалист, заявка, запись журнала,
+исполнитель) и проверяет три способа отката, сравнивая счётчики строк до и
+после:
+
+1. **неявный откат** — ошибка внутри `sequelize.transaction()` после вставок в
+   четыре таблицы: не сохраняется ничего;
+2. **явный откат** — успешные вставки и `transaction.rollback()` без ошибки;
+3. **откат частичной операции** — `UPDATE` статуса, `INSERT` в журнал и
+   `DELETE` исполнителя в одной транзакции: после сбоя статус, журнал и состав
+   бригады не изменились.
+
+```
+[16:51:21] INFO: все сценарии отката подтверждены
+    сценариев: 3
+    строки: "sites=2 equipment=7 requests=21 history=40 assignees=12"
+```
+
+Скрипт возвращает ненулевой код выхода, если счётчики разошлись или база не
+вернулась к исходному состоянию; фикстура удаляется в коммитящей транзакции,
+поэтому повторный запуск ничего не меняет.
+
+### Демо-данные
+
+`npm run db:seed` идемпотентен: перед вставкой он удаляет записи с
+идентификаторами из своего диапазона и вставляет заново, поэтому повторный
+запуск печатает `added: 0`. Идентификаторы фиксированы
+(`00000000-0000-4000-8000-…`), чтобы коллекция Postman и `db:rollback-demo`
+могли ссылаться на одни и те же объекты.
+
+| Таблица | Записей | Состав |
+| --- | --- | --- |
+| `sites` | 2 | `SITE-NORTH` (Московская область), `SITE-SOUTH` (Калужская область) |
+| `equipment` | 6 | Турбина, датчик, инвертор, две подстанции, кабельная линия; `DEMO-SS-09` — вне площадок; кабельная линия `DEMO-C-05` отнесена к типу `sensor`, отдельного типа для линий в перечне ТЗ нет |
+| `equipment_passports` | 3 | Для трёх единиц техники |
+| `technicians` | 5 | Турбины, датчики, инверторы, кабельные линии, подстанции |
+| `maintenance_requests` | 20 | 6 `new`, 5 `in_progress`, 5 `done`, 4 `rejected` |
+| `request_status_history` | 39 | Полные цепочки переходов, начиная с `previous_status = NULL` |
+| `request_assignees` | 12 | Назначения с плановыми часами |
+
+Даты в сиде — январь…сентябрь 2026, поэтому фильтры по периоду в коллекции
+(например, `dateFrom=2026-01-01`) возвращают непустой результат. У каждой
+заявки в `in_progress` ровно один `lead`, что соответствует правилам API.
+
+## Эндпоинты
+
+| Метод | Путь | Назначение | Коды |
+| --- | --- | --- | --- |
+| `GET` | `/api/health` | Проверка доступности | 200 |
+| `GET` | `/api/equipment` | Список: фильтры `status`, `type`, `installedFrom`/`installedTo`, сортировка `sort`, пагинация `page`, `limit`, `offset` | 200, 400, 422 |
+| `POST` | `/api/equipment` | Создание оборудования | 201, 409, 422 |
+| `GET` | `/api/equipment/:id` | Карточка с паспортом | 200, 404 |
+| `PATCH` | `/api/equipment/:id` | Частичное обновление | 200, 404, 409, 422 |
+| `DELETE` | `/api/equipment/:id` | Удаление (запрещено при открытых заявках) | 204, 404, 409 |
+| `GET` | `/api/equipment/:id/requests` | Заявки по оборудованию (те же фильтры) | 200, 404, 400, 422 |
+| `GET` | `/api/equipment/:id/weather` | Прогноз и пригодность окна | 200, 404, 502 |
+| `GET` | `/api/requests` | Список: фильтры `status`, `priority`, `equipmentId`, `dateFrom`/`dateTo` (по `createdAt`), `sort`, `page`, `limit`, `offset` | 200, 400, 422 |
+| `POST` | `/api/requests` | Создание заявки | 201, 404, 422 |
+| `GET` | `/api/requests/:id` | Карточка заявки с `assignees` | 200, 404 |
+| `GET` | `/api/requests/:id/history` | Журнал переходов статуса, от свежих к старым | 200, 404 |
+| `PATCH` | `/api/requests/:id` | Редактирование полей (`title`, `description`, `priority`, `plannedAt`) | 200, 404, 422 |
+| `PATCH` | `/api/requests/:id/status` | Смена статуса с проверкой перехода и журналом | 200, 404, 409, 422 |
+| `POST` | `/api/requests/:id/assignees` | Полная замена состава бригады | 201, 404, 409, 422 |
+| `DELETE` | `/api/requests/:id/assignees/:technicianId` | Снятие исполнителя | 200, 404, 409 |
+| `DELETE` | `/api/requests/:id` | Удаление заявки | 204, 404 |
+| `GET` | `/api/sites/:id/summary` | Сводка по площадке | 200, 404 |
+| `GET` | `/api/reports/equipment-load` | Отчёт по нагрузке на оборудование | 200, 400, 404, 422 |
+
+> Во всех списках ответ имеет вид `{ data: [...], meta: { total, page, limit } }`.
+> Одиночные ресурсы возвращаются объектом напрямую. При 201 выдаётся
+> заголовок `Location`.
+
+### Сортировка и пагинация
+
+- `sort=name` — по возрастанию, `sort=-name` — по убыванию. Поля сортировки для
+  оборудования: `name`, `type`, `status`, `serialNumber`, `installedAt`,
+  `createdAt`; для заявок: `priority`, `status`, `plannedAt`, `createdAt`,
+  `updatedAt`. Неизвестное поле — **422**. Дополнительно по `id` как стабильный
+  ключ, чтобы страницы не «плыли» при одинаковых значениях.
+- `page` (≥1, по умолчанию 1), `limit` (1–100, по умолчанию 20),
+  `offset` (0–10000, необязателен).
+- `offset` приоритетнее `page`: если он задан, страница считается от него.
+- Выход `page`/`limit`/`offset` за границы — **400** `BAD_REQUEST`, остальные
+  нарушения схемы — **422**. Проверка вычисленного смещения тоже учитывается:
+  `page=600&limit=20` даёт `offset = 11980` и отвергается с указанием на `page`.
+- Пустой параметр запроса (`?status=`, `?sort=`, `?dateFrom=`) считается
+  незаданным. Непустое, но некорректное значение — **422**.
+- Диапазоны дат включительные; начало позже конца — **422**.
+
+```json
+{
+  "error": {
+    "code": "BAD_REQUEST",
+    "message": "Параметры пагинации вне допустимого диапазона",
+    "requestId": "d5671d1f-...",
+    "details": [{ "field": "offset", "message": "offset не может превышать 10000" }]
+  }
+}
+```
+
+## Бизнес-логика заявок
+
+### Схема переходов статусов
 
 ```
 new ──────────► in_progress ──────────► done
@@ -96,46 +460,124 @@ new ──────────► in_progress ──────────
 ```
 
 - `new → in_progress`, `new → rejected`, `in_progress → done`, `in_progress → rejected`;
-- из `done` и `rejected` переходы запрещены; попытка — ответ **409**;
-- повторная установка текущего статуса — ответ **409**.
+- из `done` и `rejected` переходы запрещены — **409**;
+- повторная установка текущего статуса — **409**;
+- `in_progress` требует непустой бригады, иначе **409**
+  («Перевод в статус «in_progress» требует назначенной бригады исполнителей»);
+- тело `PATCH /status` принимает необязательные `comment` и `changedBy`
+  (по умолчанию `DEFAULT_AUTHOR`), они попадают в журнал;
+- изменение статуса выполняется в одной транзакции: блокировка строки
+  `SELECT … FOR UPDATE`, проверка перехода, проверка бригады, `UPDATE`,
+  `INSERT` в журнал, чтение карточки. Конкурентные запросы получают 409 вместо
+  двойной записи в журнал.
 
-## Эндпоинты
+### Бригада заявки
 
-| Метод | Путь | Назначение | Коды |
-| --- | --- | --- | --- |
-| `GET` | `/api/health` | Проверка доступности | 200 |
-| `GET` | `/api/equipment` | Список: фильтры `status`, `type`, `installedFrom`/`installedTo` (по `installedAt`), сортировка `sort`, пагинация `page`, `limit` | 200, 422 |
-| `POST` | `/api/equipment` | Создание оборудования | 201, 409, 422 |
-| `GET` | `/api/equipment/:id` | Карточка | 200, 404 |
-| `PATCH` | `/api/equipment/:id` | Частичное обновление | 200, 404, 409, 422 |
-| `DELETE` | `/api/equipment/:id` | Удаление (запрещено при открытых заявках) | 204, 404, 409 |
-| `GET` | `/api/equipment/:id/requests` | Заявки по оборудованию (те же фильтры) | 200, 404, 422 |
-| `GET` | `/api/equipment/:id/weather` | Прогноз и пригодность окна | 200, 404, 502 |
-| `GET` | `/api/requests` | Список: фильтры `status`, `priority`, `equipmentId`, `dateFrom`/`dateTo` (по `createdAt`), `sort`, `page`, `limit` | 200, 422 |
-| `POST` | `/api/requests` | Создание заявки | 201, 404, 422 |
-| `GET` | `/api/requests/:id` | Карточка заявки | 200, 404 |
-| `PATCH` | `/api/requests/:id` | Редактирование полей (`title`, `description`, `priority`, `plannedAt`) | 200, 404, 422 |
-| `PATCH` | `/api/requests/:id/status` | Смена статуса с проверкой перехода | 200, 404, 409, 422 |
-| `DELETE` | `/api/requests/:id` | Удаление заявки | 204, 404 |
+`POST /api/requests/:id/assignees` полностью заменяет состав:
 
-> Во всех списках ответ имеет вид `{ data: [...], meta: { total, page, limit } }`.
-> Одиночные ресурсы возвращаются объектом напрямую. У любого изменения —
-> `Location`-заголовок (при 201) и консистентный `updatedAt`.
+```json
+{
+  "assignees": [
+    { "technicianId": "00000000-0000-4000-8000-000000000011", "role": "lead", "plannedHours": 6 },
+    { "technicianId": "00000000-0000-4000-8000-000000000012", "role": "member", "plannedHours": 4 }
+  ]
+}
+```
 
-### Сортировка и пагинация
+- 1–20 исполнителей, ровно один `lead` (на уровне схемы — **422**; на уровне БД
+  защищает частичный уникальный индекс, ошибка переводится в **409**);
+- `plannedHours` — неотрицательное число, необязательное;
+- неизвестный специалист — **404** с перечнем `technicianIds` в `details`,
+  прежний состав сохраняется (проверяется транзакцией);
+- у заявки в `done`/`rejected` бригаду менять нельзя — **409**;
+- снять `lead`, пока в бригаде есть другие специалисты, нельзя — **409**;
+  снять единственного ведущего можно, бригада станет пустой;
+- снятие не назначенного специалиста — **404**;
+- оба ответа возвращают обновлённую карточку заявки.
 
-- `sort=name` — по возрастанию, `sort=-name` — по убыванию. Поля сортировки для
-  оборудования: `name`, `type`, `status`, `serialNumber`, `installedAt`, `createdAt`;
-  для заявок: `priority`, `status`, `plannedAt`, `createdAt`, `updatedAt`. Неизвестное
-  поле — `422`.
-- `page` (≥1, по умолчанию 1), `limit` (1–100, по умолчанию 20).
-- Пустой параметр запроса (`?status=`, `?sort=`, `?dateFrom=`) считается незаданным
-  и не приводит к ошибке — так удобнее собирать URL из необязательных фильтров.
-  Непустое, но некорректное значение по-прежнему отклоняется с **422**:
-  `?status=bogus`, `?page=0`, `?dateFrom=01.01.2024`.
-- `installedFrom`/`installedTo` у оборудования фильтруют по дате установки
-  (`installedAt`), `dateFrom`/`dateTo` у заявок — по дате создания (`createdAt`).
-  Оба диапазона включительные; начало позже конца — **422**.
+### Журнал переходов
+
+`GET /api/requests/:id/history` отдаёт `{ data: [...] }`, записи отсортированы
+по `changed_at DESC`. Первая запись создаётся вместе с заявкой
+(`previousStatus: null`, `newStatus: "new"`), поэтому цепочка
+`new → in_progress → done` видна целиком — и для API, и для сида.
+
+```json
+{
+  "data": [
+    {
+      "id": "00000000-0000-4000-8000-000000000045",
+      "requestId": "00000000-0000-4000-8000-000000000032",
+      "previousStatus": "in_progress",
+      "newStatus": "done",
+      "changedBy": "Петрова Анна Сергеевна",
+      "comment": "Связь восстановлена",
+      "changedAt": "2026-02-20T15:00:00.000Z"
+    }
+  ]
+}
+```
+
+## Отчёты
+
+Оба отчёта считаются прямым SQL в репозитории (Sequelize `query` с
+`replacements`), без загрузки строк в память. Агрегаты выполняет PostgreSQL.
+
+### Сводка по площадке
+
+`GET /api/sites/:id/summary` — один `SELECT` с двумя `LEFT JOIN`-агрегатами по
+заявкам плюс `COUNT` по оборудованию. Нулевые значения по статусам и
+приоритетам присутствуют в ответе, а не отсутствуют; `averageCloseSeconds` —
+`null`, если закрытых заявок не было.
+
+```json
+{
+  "siteId": "00000000-0000-4000-8000-000000000001",
+  "siteName": "Площадка Северная",
+  "siteCode": "SITE-NORTH",
+  "region": "Московская область",
+  "equipmentTotal": 3,
+  "requestsTotal": 11,
+  "byStatus": { "new": 2, "in_progress": 5, "done": 3, "rejected": 1 },
+  "byPriority": { "low": 3, "medium": 4, "high": 2, "critical": 2 },
+  "averageCloseSeconds": 384150
+}
+```
+
+Неизвестная площадка — **404**. Для `SITE-SOUTH`: 2 единицы техники, 7 заявок,
+среднее время закрытия 248100 с.
+
+### Нагрузка на оборудование
+
+`GET /api/reports/equipment-load` — фильтры `dateFrom`, `dateTo` (по
+`created_at`), `siteId`, `status`, `priority`, `limit` (1–100, по умолчанию 20).
+Сумма плановых часов берётся `LATERAL`-подзапросом по назначениям, поэтому N+1
+запросов нет; строки отсортированы по убыванию числа заявок, затем по убыванию
+плановых часов и по `id`, лишние строки обрезаются на уровне БД.
+
+```json
+{
+  "data": [
+    {
+      "equipmentId": "00000000-0000-4000-8000-000000000021",
+      "serialNumber": "DEMO-T-01",
+      "equipmentName": "Турбина Т-1",
+      "siteId": "00000000-0000-4000-8000-000000000001",
+      "siteName": "Площадка Северная",
+      "requestsTotal": 5,
+      "requestsClosed": 1,
+      "plannedHours": 36,
+      "lastServicedAt": "2026-06-18T14:30:00.000Z"
+    }
+  ],
+  "applied": { "dateFrom": "2026-01-01", "dateTo": "2026-12-31", "limit": 3 }
+}
+```
+
+`applied` возвращает фактически применённые фильтры — удобно для отладки и
+кэширования на стороне клиента. Оборудование без заявок в выборку не попадает
+(`INNER JOIN`), `lastServicedAt` — `null`, если закрытых заявок не было.
+`limit` вне диапазона — **400**, `dateFrom > dateTo` — **422**.
 
 ## Формат ответа об ошибке
 
@@ -146,37 +588,34 @@ new ──────────► in_progress ──────────
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Некорректные данные запроса",
-    "details": [
-      { "field": "priority", "message": "Недопустимый приоритет" }
-    ],
+    "details": [{ "field": "priority", "message": "Недопустимый приоритет" }],
     "requestId": "b1f2c3d4-..."
   }
 }
 ```
 
-`details` присутствует только у ошибок валидации. `requestId` совпадает с заголовком
-`X-Request-Id` ответа и с идентификатором запроса в логах — по нему можно найти
-запись в логах. В `production` у **не-операционных** ответов 5xx скрываются
-внутренние сообщения и стек-трейсы: клиент видит `INTERNAL_ERROR` с текстом
-«Внутренняя ошибка сервера», а причина остаётся в логах по `requestId`.
-Операционные ошибки приложения (`ValidationError`, `NotFoundError`,
-`ConflictError`, `ExternalServiceError` и прочие типы из `src/errors.ts`) несут
-текст, специально написанный для клиента, поэтому их сообщения не маскируются ни в
-каком окружении — в частности 502 отвечает «Погодный сервис временно недоступен,
-повторите попытку позже», а не обезличенной 500.
-
-Коды ошибок:
+`details` присутствует только у ошибок валидации. `requestId` совпадает с
+заголовком `X-Request-Id` ответа и с идентификатором запроса в логах. В
+`production` у **не-операционных** ответов 5xx скрываются внутренние сообщения
+и стек-трейсы: клиент видит `INTERNAL_ERROR`, причина остаётся в логах.
+Операционные ошибки приложения несут текст, специально написанный для клиента,
+поэтому не маскируются ни в каком окружении.
 
 | Код | HTTP | Когда |
 | --- | --- | --- |
 | `VALIDATION_ERROR` | 422 | Некорректные поля body/query/params |
+| `BAD_REQUEST` | 400 | Выход `page`/`limit`/`offset` за диапазон |
 | `INVALID_JSON` | 400 | Битый JSON в теле |
 | `PAYLOAD_TOO_LARGE` | 413 | Тело больше `BODY_LIMIT` |
 | `NOT_FOUND` | 404 | Ресурс/эндпоинт не найден |
-| `CONFLICT` | 409 | Дубль серийного номера, недопустимый переход статуса, удаление оборудования с открытыми заявками |
+| `CONFLICT` | 409 | Дубль серийного номера / табельного номера, недопустимый переход статуса, `in_progress` без бригады, два `lead`, изменение бригады у закрытой заявки, удаление оборудования с открытыми заявками |
 | `RATE_LIMIT_EXCEEDED` | 429 | Превышен лимит частоты запросов |
 | `EXTERNAL_API_ERROR` | 502 | Погодный API недоступен/ошибся |
 | `INTERNAL_ERROR` | 500 | Необработанная ошибка |
+
+Ошибки PostgreSQL переводятся в доменные: `23503` (`NOT_FOUND`), `23505`
+(`CONFLICT`), `23514` — `CONFLICT` для прикладных ограничений и `BAD_REQUEST`
+для битых параметров запроса.
 
 ## Примеры запросов и ответов
 
@@ -195,10 +634,7 @@ Content-Type: application/json
 }
 ```
 
-```http
-HTTP/1.1 201 Created
-Location: /api/equipment/5b3e5f1c-...
-
+```json
 {
   "id": "5b3e5f1c-...",
   "name": "Ветрогенератор W-01",
@@ -207,14 +643,14 @@ Location: /api/equipment/5b3e5f1c-...
   "location": { "lat": 54.35, "lon": 37.61 },
   "status": "operational",
   "installedAt": "2024-05-01",
-  "createdAt": "2026-09-20T00:00:00.000Z",
-  "updatedAt": "2026-09-20T00:00:00.000Z"
+  "createdAt": "2026-09-28T09:51:45.147Z",
+  "updatedAt": "2026-09-28T09:51:45.147Z"
 }
 ```
 
 Дубль серийного номера:
 
-```http
+```json
 HTTP/1.1 409 Conflict
 {
   "error": {
@@ -222,6 +658,38 @@ HTTP/1.1 409 Conflict
     "message": "Оборудование с серийным номером «SN-001» уже существует",
     "requestId": "..."
   }
+}
+```
+
+### Карточка заявки
+
+`GET /api/requests/:id` возвращает заявку вместе с бригадой; исполнители
+приходят одним `include`, без дополнительных запросов:
+
+```json
+{
+  "id": "00000000-0000-4000-8000-000000000031",
+  "equipmentId": "00000000-0000-4000-8000-000000000021",
+  "title": "Плановое ТО турбины",
+  "description": "Замена масла в редукторе, проверка затяжки болтов",
+  "priority": "medium",
+  "status": "in_progress",
+  "plannedAt": "2026-03-10T09:00:00.000Z",
+  "author": "seed",
+  "createdAt": "2026-02-01T08:00:00.000Z",
+  "updatedAt": "2026-03-09T07:30:00.000Z",
+  "assignees": [
+    {
+      "requestId": "00000000-0000-4000-8000-000000000031",
+      "technicianId": "00000000-0000-4000-8000-000000000011",
+      "role": "lead",
+      "plannedHours": 8,
+      "assignedAt": "2026-09-28T09:51:45.147Z",
+      "fullName": "Иванов Иван Иванович",
+      "specialization": "Турбины",
+      "personnelNumber": "EMP-0001"
+    }
+  ]
 }
 ```
 
@@ -233,13 +701,55 @@ Content-Type: application/json
 { "status": "new" }        // заявка уже в статусе done
 ```
 
-```http
+```json
 HTTP/1.1 409 Conflict
 {
   "error": {
     "code": "CONFLICT",
     "message": "Переход из статуса «done» в «new» недопустим",
     "requestId": "..."
+  }
+}
+```
+
+### Перевод в работу без бригады
+
+```json
+HTTP/1.1 409 Conflict
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "Перевод в статус «in_progress» требует назначенной бригады исполнителей",
+    "requestId": "..."
+  }
+}
+```
+
+### Снятие ведущего из непустой бригады
+
+```json
+HTTP/1.1 409 Conflict
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "Нельзя снять ведущего, пока в бригаде назначены другие специалисты: сначала замените lead",
+    "requestId": "..."
+  }
+}
+```
+
+### Неизвестный специалист
+
+```json
+HTTP/1.1 404 Not Found
+{
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Специалист не найден",
+    "requestId": "...",
+    "details": {
+      "technicianIds": ["00000000-0000-4000-8000-0000000000ff"]
+    }
   }
 }
 ```
@@ -262,115 +772,239 @@ GET /api/equipment/:id/weather
 }
 ```
 
-**Правило пригодности окна наружных работ** (описано в конфигурации):
-день пригоден, если за сутки выпало не более `WEATHER_ALLOWED_PRECIPITATION_MM`
-осадков **и** максимальная скорость ветра ниже `WEATHER_MAX_WIND_KMPH`.
-Пороги задаются переменными окружения и единицы измерения совпадают с единицами
-в ответе внешнего API (км/ч и мм).
-
-Если погодный API недоступен — сервис не падает:
-
-```http
-HTTP/1.1 502 Bad Gateway
-{
-  "error": {
-    "code": "EXTERNAL_API_ERROR",
-    "message": "Погодный сервис временно недоступен, повторите попытку позже",
-    "requestId": "..."
-  }
-}
-```
+**Правило пригодности окна наружных работ**: день пригоден, если за сутки
+выпало не более `WEATHER_ALLOWED_PRECIPITATION_MM` осадков **и** максимальная
+скорость ветра ниже `WEATHER_MAX_WIND_KMPH`. Пороги задаются переменными
+окружения, единицы измерения совпадают с единицами внешнего API (км/ч и мм).
+Координаты берутся из `equipment.latitude`/`longitude`, поэтому модуль не
+делает `JOIN` с площадками. Если погодный API недоступен, сервис не падает и
+отвечает **502** `EXTERNAL_API_ERROR`.
 
 ## Безопасность
 
 - **CORS.** Разрешены только источники из `CORS_ORIGINS` (список через запятую),
-  «звёздочка» не используется. Для демо разрешены локальные источники
-  `http://localhost:3000` и `http://localhost:8080` — они представляют страницу,
-  которая работает с API через `fetch`, и сам сервер. В production список
-  заменяется реальными доменами фронтенда.
-- **Rate limiting.** На все маршруты `/api` действует лимит
-  `RATE_LIMIT_MAX` запросов за `RATE_LIMIT_WINDOW_MS` мс. При превышении — `429`
-  с заголовками `RateLimit-*` (draft-8) и ответом в едином формате ошибки.
-- **Защитные заголовки** — `helmet`; размер тела ограничен `BODY_LIMIT` (100kb) → `413`.
-- **Cookie не используются**, поэтому флаги `HttpOnly`/`Secure`/`SameSite` не требуются.
+  «звёздочка» не используется. Для демо разрешены `http://localhost:3000` и
+  `http://localhost:8080`; в production список заменяется реальными доменами.
+- **Rate limiting.** На все маршруты `/api` действует лимит `RATE_LIMIT_MAX`
+  запросов за `RATE_LIMIT_WINDOW_MS` мс. При превышении — `429` с заголовками
+  `RateLimit-*` (draft-8) и ответом в едином формате ошибки. Лимит считается в
+  памяти процесса, поэтому при нескольких инстансах он не общий.
+- **Защитные заголовки** — `helmet`; размер тела ограничен `BODY_LIMIT` (100kb)
+  → `413`.
+- **Cookie не используются**, поэтому флаги `HttpOnly`/`Secure`/`SameSite` не
+  требуются.
+- **SQL-инъекции.** Пользовательские значения подставляются только через
+  `replacements` Sequelize (параметризованные запросы). Имена колонок для
+  сортировки берутся из белого списка, а не из пользовательского ввода.
+- **Роли.** Приложение работает на `app_rw` без права менять схему: даже
+  SQL-инъекция в приложении не даст `CREATE TABLE`, `DROP` или доступ к
+  чужим схемам.
 - **Секреты.** В репозитории только `.env.example`; `.env` в `.gitignore`.
   В `production` стек-трейсы и внутренние сообщения не попадают в ответ
-  не-операционных ошибок; тексты операционных ошибок безопасны и показываются
-  как есть.
+  не-операционных ошибок.
+- **Аутентификация не реализована** — она вне объёма кейса; ограничение доступа
+  к эндпоинтам предполагается на уровне сетевого периметра.
+
+### Известные уязвимости зависимостей
+
+`npm audit` сообщает о 2 умеренных предупреждениях:
+
+```
+uuid  <11.1.1
+Severity: moderate
+uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided
+https://github.com/advisories/GHSA-w5hq-g745-h8pq
+```
+
+`uuid@8.3.2` приходит транзитивно из `sequelize@6.37.8` и используется только
+внутри Sequelize для генерации идентификаторов. Уязвимость касается функций
+`v3/v5/v6` при передаче пользовательского буфера — сервис их не вызывает и
+идентификаторы не принимает от клиента. Обновление возможно только вместе с
+ Sequelize (`npm audit fix --force` предлагает откат на `sequelize@3.30.0`),
+поэтому пакет зафиксирован на текущей версии и риск принят осознанно.
 
 ## Логирование
 
-- Каждый запрос логируется (pino): метод, путь, статус, `responseTime`,
+- Каждый запрос логируется (pino-http): метод, путь, статус, `responseTime`,
   `X-Request-Id`. `/api/health` игнорируется.
-- Ошибки логируются на `error`/`warn` с `requestId`, который возвращается клиенту.
-- Чувствительные поля (authorization, cookie, password, token) вырезаются из логов.
+- Ошибки логируются на `error`/`warn` с `requestId`, который возвращается
+  клиенту. Пишутся и предупреждения о неудачных попытках подключения к БД при
+  старте.
+- Чувствительные поля (authorization, cookie, password, token) вырезаются из
+  логов.
 - `console.log` в коде отсутствует; уровни — из `LOG_LEVEL`.
+- `DB_LOG_QUERIES=true` вместе с `LOG_LEVEL=debug` включает логирование SQL.
+  Эта связка использовалась для аудита выборок: в логах нет ни одного
+  `SELECT *`, все колонки перечислены явно. В `.env.example` оставлено
+  `DB_LOG_QUERIES=false`, чтобы в разработке не засорять вывод.
+
+## Транзакции и целостность
+
+- Транзакцию открывает сервис через `storage.transaction`, репозитории только
+  выполняют операции. Собственных `COMMIT` внутри репозиториев нет.
+- Конкурентная смена статуса безопасна: строка заявки блокируется
+  `SELECT … FOR UPDATE`, `UPDATE` проверяет ожидаемый статус
+  (`WHERE id = ? AND status = ?`), поэтому два параллельных запроса не могут
+  оба «пройти» проверку перехода.
+- Состояние `status` и `closed_at` связаны `CHECK`-ограничением: в базу нельзя
+  попасть `done` без `closed_at` или наоборот.
+- Один `lead` на заявку гарантирует частичный уникальный индекс, а не только
+  код сервиса, — это защищает и от прямого SQL.
+- Журнал переходов неизменяем на уровне БД (триггер), а не только на уровне
+  приложения.
 
 ## Структура проекта
 
 ```
 src/
-  index.ts               # запуск сервера (bootstrap, graceful shutdown)
-  app.ts                 # сборка приложения createApp(storage) — подключается в тестах
-  config.ts              # конфигурация из переменных окружения (zod)
-  errors.ts              # типы ошибок приложения
-  types.d.ts             # расширение Express.Request (req.valid)
-  domain/                # доменные модели и enum-типы
-  repositories/          # интерфейсы репозиториев + JSON-реализация (createStorage)
-  services/              # бизнес-логика (equipment, request, weather)
-  controllers/           # тонкие обработчики HTTP (equipment, request, weather)
-  routes/                # api/equipment/requests маршрутизация
-  schemas/               # zod-схемы body/query/params
-  middleware/            # validate, error-handler, rate-limit
-  lib/                   # logger, http-logger, context (AsyncLocalStorage),
-                         # async-handler, json-store
-docs/postman/            # коллекция Postman
-data/                    # JSON-хранилище (создаётся при первом запуске, в git не входит)
+  index.ts                 # bootstrap, graceful shutdown (SHUTDOWN_GRACE_MS = 10s)
+  app.ts                   # сборка приложения createApp(storage)
+  config.ts                # конфигурация из переменных окружения (zod)
+  errors.ts                # типы ошибок приложения
+  domain/                  # доменные модели и enum-типы
+  repositories/            # интерфейсы + PostgreSQL-реализации
+    postgres/attributes.ts # явные списки колонок для всех таблиц
+    postgres/mappers.ts    # строки БД → доменные объекты
+    postgres/*-repository.ts
+    storage.ts             # сборка репозиториев и transaction runner
+  services/                # бизнес-логика (equipment, request, site, report, weather)
+  controllers/             # тонкие обработчики HTTP
+  routes/                  # api/equipment/requests/sites/reports
+  schemas/                 # zod-схемы body/query/params
+  middleware/              # validate, error-handler, rate-limit
+  db/
+    client.ts              # Sequelize (роль app/migration), waitForDatabase
+    migrator.ts            # umzug
+    models/                # модели Sequelize (7 таблиц)
+    migrations/            # 9 миграций up/down
+    cli/                   # migrate, seed, verify-schema, rollback-demo
+  lib/                     # logger, http-logger, context (AsyncLocalStorage)
+db/init/                   # создание роли app_rw при инициализации кластера
+docs/postman/              # коллекция Postman
+compose.yaml               # PostgreSQL 18 + volume pgdata + healthcheck
 ```
 
-Архитектура слоёв: `маршруты → контроллеры → сервисы → репозитории`. Бизнес-логика
-живёт в сервисах (`EquipmentService`, `RequestService`, `WeatherService`), работа с
-данными — только в репозиториях. Замена JSON-хранилища на PostgreSQL на Неделе 3
-затронет только каталог `repositories/`.
+`sync({ force: true })` не используется нигде: схема меняется только
+миграциями, иначе `db:reset` и откат перестали бы работать. `db:verify`
+сверяет каждую колонку каждой модели с `information_schema` (имя, тип,
+`NULL`-ability, `PRIMARY KEY`, значения enum) и печатает число таблиц —
+это ловит расхождение между миграциями и моделями.
 
 ### Порядок подключения middleware
 
-Порядок в `src/app.ts` не случаен — каждый шаг объясним:
-
 | # | Middleware | Почему именно здесь |
 | --- | --- | --- |
-| 1 | `httpLogger` (pino-http) | Первым, чтобы логировался **любой** запрос, даже упавший в следующем middleware. Здесь же присваивается `X-Request-Id`, поэтому идентификатор есть в логах всех последующих шагов и в теле любой ошибки |
-| 2 | `contextMiddleware` | Сразу после логгера: перехватывает `req.id` и `req.log` в `AsyncLocalStorage`, после чего `getLog()` доступен в сервисах без передачи логгера по сигнатурам |
-| 3 | `helmet` | До всего, что способен сформировать ответ, чтобы защитные заголовки получили и ответы с ошибкой, в том числе 4xx/5xx |
-| 4 | `cors` | До маршрутов и **до** rate limiting: preflight-OPTIONS должен отвечаться, не расходуя квоту частоты, иначе браузер получает 429 вместо разрешённого запроса |
-| 5 | `rateLimiter` на `/api` | До разбора тела и до работы маршрутов: злоумышленник отсекается до того, как сервер потратит ресурсы на чтение и валидацию JSON |
-| 6 | `express.json` с лимитом размера | После rate limiting, но до маршрутов: middleware валидации читает `req.body`, а превышение `BODY_LIMIT` должно давать 413 до валидации полей |
-| 7 | `express.urlencoded` | Там же по той же причине; `application/x-www-form-urlencoded` тоже может нести вложенный объект |
-| 8 | `createApiRouter` | Маршруты; внутри каждого маршрута `validate()` стоит **до** контроллера, поэтому контроллеры работают только с уже проверенными данными из `req.valid` |
-| 9 | Обработчик 404 | После всех маршрутов: срабатывает только на пути, который не совпал ни с одним маршрутом, и отдаёт ту же структуру ошибки, что и остальные ответы |
-| 10 | `errorHandler` | Последним, чтобы через него проходили ошибки всех предыдущих шагов и всех обработчиков маршрутов, включая асинхронные |
+| 1 | `httpLogger` (pino-http) | Первым, чтобы логировался **любой** запрос, даже упавший дальше. Здесь присваивается `X-Request-Id` |
+| 2 | `contextMiddleware` | Перехватывает `req.id` и `req.log` в `AsyncLocalStorage`, после чего `getLog()` доступен в сервисах без передачи логгера по сигнатурам |
+| 3 | `helmet` | До всего, что способен сформировать ответ, чтобы защитные заголовки получили и ответы с ошибкой |
+| 4 | `cors` | До маршрутов и **до** rate limiting: preflight-OPTIONS должен отвечаться, не расходуя квоту частоты |
+| 5 | `rateLimiter` на `/api` | До разбора тела и работы маршрутов |
+| 6 | `express.json` с лимитом размера | После rate limiting, но до маршрутов: превышение `BODY_LIMIT` должно давать 413 до валидации полей |
+| 7 | `express.urlencoded` | Там же по той же причине |
+| 8 | `createApiRouter` | Маршруты; `validate()` стоит **до** контроллера, поэтому контроллеры работают только с проверенными данными из `req.valid` |
+| 9 | Обработчик 404 | После всех маршрутов: единый формат ошибки |
+| 10 | `errorHandler` | Последним, чтобы через него проходили ошибки всех шагов и обработчиков |
 
-Ключевое следствие порядка: обработчик ошибок стоит после 404, поэтому
-несуществующий эндпоинт и любая ошибка бизнес-логики приводят к одному формату
-ответа `{ error: { code, message, details?, requestId } }`.
+Обработчик ошибок стоит после 404, поэтому несуществующий эндпоинт и любая
+ошибка бизнес-логики приводят к одному формату ответа
+`{ error: { code, message, details?, requestId } }`.
+
+### Graceful shutdown
+
+`SIGTERM`/`SIGINT`, а также `uncaughtException` и `unhandledRejection` приводят к
+`server.close()` → `server.closeIdleConnections()` → `storage.close()` (пул
+Sequelize освобождается, соединения не висят). Параллельно работает таймер
+`SHUTDOWN_GRACE_MS = 10_000` (константа в `src/index.ts`): если БД не отвечает,
+процесс всё равно завершится. Повторный сигнал не запускает вторую остановку.
 
 ## Тестирование в Postman
 
-Коллекция в `docs/postman/caselab-requests.postman_collection.json`:
+Коллекция в `docs/postman/caselab-requests.postman_collection.json` (45
+test-скриптов, 14 pre-request-скриптов, 99 запросов на прогон).
+
+```bash
+# чистая база
+npm run db:reset && npm run db:migrate && npm run db:seed
+
+# сервер
+npm run build && npm start
+
+# прогон
+npx newman run docs/postman/caselab-requests.postman_collection.json
+```
+
+Порядок запуска:
 
 1. Импортируйте коллекцию в Postman (`Import → Upload Files`).
 2. Создайте окружение, в нём задайте `baseUrl` (например, `http://localhost:3000`).
 3. Запустите группу «Equipment» (создаются записи, `equipmentId` сохраняется в
-   переменные), затем «Requests» — заявки привязываются к созданному оборудованию.
-   Фикстуры серийных номеров фиксированы, поэтому полный прогон выполняйте на
-   чистом `DATA_DIR`: иначе создание оборудования вернёт 409 по дубликату.
-4. В коллекцию включены негативные сценарии: 400 (битый JSON), 422 (некорректное
-   тело и недопустимый фильтр), 404, 409 (дубль серийного номера, недопустимый
-   переход статуса, удаление оборудования с открытой заявкой), 429; в запросах
-   написаны автотесты `pm.test` на код ответа и структуру тела.
-5. Запросы, зависящие от `requestId`, содержат проверку в pre-request: если
-   «Создание заявки» не выполнено, прогон останавливается с понятным сообщением
-   вместо каскада неверных URL.
-6. Последний запрос (429) расходует лимит частоты и должен выполняться последним.
-   Он перебирает запросы до первого 429; если на сервере задан другой
+   переменные), затем «Maintenance requests» — заявки привязываются к созданному
+   оборудованию. Фикстуры серийных номеров фиксированы, поэтому полный прогон
+   выполняйте на чистой базе: иначе создание оборудования вернёт 409 по
+   дубликату.
+4. Сценарий 429 (последний в коллекции) расходует квоту частоты, поэтому
+   коллекцию нельзя прогонять дважды подряд без перезапуска сервера. Он
+   перебирает запросы до первого 429; если на сервере задан другой
    `RATE_LIMIT_MAX`, поправьте переменную коллекции `rateLimitMax`.
+
+Что изменилось по сравнению с версией недели на JSON-хранилище:
+
+- **Ровно два существующих теста** смены статуса адаптированы: их pre-request
+  теперь сначала назначает бригаду (иначе переход в `in_progress` даёт 409).
+  Остальные исходные запросы коллекции не менялись.
+- Добавлены 18 запросов: пагинация через `offset` (200), `offset` вне диапазона
+  (400), `page`, дающий слишком большое смещение (400), `in_progress` без
+  бригады (409), назначение бригады (201), неизвестный специалист (404), бригада
+  без `lead` (422), снятие `lead` при других исполнителях (409), снятие второго
+  специалиста (200), снятие единственного `lead` (200), история переходов и
+  история заявки из сида (200), сводка по площадке (200/404), отчёт по нагрузке
+  (200/422/400) и отчёт с фильтрами по площадке и статусу (200).
+- Для бригады в коллекцию добавлены переменные `leadTechnicianId` и
+  `memberTechnicianId` (специалисты 11 и 12 сида).
+- Идентификаторы площадок и заявок сида зашиты в коллекцию
+  (`00000000-0000-4000-8000-000000000001` и `…032`), поэтому сценарии отчётов и
+  истории работают только с сидом, загруженным `db:seed`.
+- Проверки не используют top-level `await` в pre-request: Newman не поддерживает
+  верхнеуровневые `await`, поэтому все вспомогательные вызовы
+  `pm.sendRequest` сделаны в callback-форме.
+
+Негативные сценарии коллекции: 400 (битый JSON, пагинация вне диапазона),
+422 (некорректное тело, недопустимый фильтр, период отчёта), 404, 409 (дубль
+серийного номера, недопустимый переход статуса, `in_progress` без бригады, два
+`lead`, снятие `lead`), 429. В каждом запросе написаны `pm.test` на код ответа и
+структуру тела; запросы, зависящие от `requestId` или `equipmentId`, содержат
+pre-request с понятной ошибкой вместо каскада неверных URL.
+
+## Отклонения и ограничения
+
+1. **Данные прошлой недели не перенесены.** Каталог `data/` был в `.gitignore`,
+   поэтому исходные JSON-файлы недоступны: переносить нечего, а `db:import`
+   сознательно не делался. Единственный источник данных — демо-сид
+   (`npm run db:seed`). Всё, что было в JSON-хранилище сверх сида, потеряно
+   безвозвратно; `db:reset` дополнительно удаляет все данные PostgreSQL.
+2. **Журнал переходов удаляется каскадом вместе с заявкой.** Триггер запрещает
+   `UPDATE`, но `ON DELETE CASCADE` на `request_status_history.request_id`
+   означает, что `DELETE /api/requests/:id` стирает историю. Для суда/аудита
+   такое поведение неприемлемо; в продакшене нужен soft delete заявок либо
+   `ON DELETE RESTRICT` с архивной таблицей. Сейчас это осознанный компромисс
+   ради простоты API.
+3. **Денормализация координат** (см. «Нормализация и денормализация»):
+   `equipment.latitude/longitude` дублируют `sites`, синхронизации нет.
+4. **`updated_at` обновляет приложение** (Sequelize timestamps), триггера на
+   уровне БД нет: прямой `UPDATE` из psql изменит данные, но не `updated_at`.
+5. **Повторное назначение одного и того же специалиста** в одном `POST` даёт
+   **422** на уровне схемы (дубликат `technicianId`), а не 409; 409 остаётся за
+   конфликтом «два lead» на уровне БД. Повторный `POST` того же состава
+   перезаписывает бригаду и отвечает 201 — операция идемпотентна по
+   содержимому, но не по времени.
+6. **`in_progress` требует бригады** — бизнес-решение, принятое при реализации
+   (заявка в работе без исполнителей не имеет смысла). В ТЗ кейса это правило
+   не было зафиксировано.
+7. **Лимит частоты — в памяти процесса.** Несколько инстансов дают
+   `RATE_LIMIT_MAX` на каждый; для продакшена нужен общий счётчик (Redis).
+8. **Аутентификация и авторизация отсутствуют** — вне объёма кейса.
+9. **`uuid@8.3.2` из `sequelize@6.37.8`** содержит умеренное предупреждение
+   `npm audit` (см. «Известные уязвимости зависимостей»).
+10. **Сводка и отчёт не кэшируются.** Агрегаты считаются на каждый запрос;
+    при росте данных потребуется материализованное представление или
+    периодический пересчёт.
