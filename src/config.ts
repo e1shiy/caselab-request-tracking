@@ -24,7 +24,6 @@ const envSchema = z.object({
   WEATHER_FORECAST_DAYS: z.coerce.number().int().min(1).max(16).default(5),
   WEATHER_MAX_WIND_KMPH: z.coerce.number().nonnegative().default(15),
   WEATHER_ALLOWED_PRECIPITATION_MM: z.coerce.number().nonnegative().default(0),
-  DATA_DIR: z.string().default('./data'),
   DB_HOST: z.string().min(1).default('localhost'),
   DB_PORT: z.coerce.number().int().min(1).max(65_535).default(5432),
   DB_NAME: z.string().min(1).default('appdb'),
