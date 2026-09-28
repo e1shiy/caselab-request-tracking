@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import type { RequestController } from '../controllers/request-controller.js';
 import { validate } from '../middleware/validate.js';
-import { idParamsSchema } from '../schemas/common.js';
+import { PAGINATION_FIELDS, idParamsSchema } from '../schemas/common.js';
 import {
   requestCreateSchema,
   requestListQuerySchema,
@@ -13,7 +13,11 @@ import {
 export function createRequestsRouter(controller: RequestController): Router {
   const router = Router();
 
-  router.get('/', validate({ query: requestListQuerySchema }), controller.list);
+  router.get(
+    '/',
+    validate({ query: requestListQuerySchema }, { rangeFields: PAGINATION_FIELDS }),
+    controller.list,
+  );
   router.post('/', validate({ body: requestCreateSchema }), controller.create);
   router.get('/:id', validate({ params: idParamsSchema }), controller.getById);
   router.patch('/:id', validate({ params: idParamsSchema, body: requestUpdateSchema }), controller.update);

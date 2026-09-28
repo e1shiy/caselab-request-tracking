@@ -17,7 +17,14 @@ import type {
   RequestRepository,
   StatusChange,
 } from '../request-repository.js';
-import { toAssigneeView, toHistoryEntry, toRequest } from './mappers.js';
+import {
+  maintenanceRequestColumns,
+  requestAssigneeColumns,
+  requestStatusHistoryColumns,
+  technicianColumns,
+} from './attributes.js';
+import { toAssigneeView, toHistoryEntry, toRequest, toRequestCard } from './mappers.js';
+import type { AssigneeRow } from './mappers.js';
 
 const SORT_COLUMNS: Record<string, keyof MaintenanceRequest> = {
   priority: 'priority',
@@ -46,7 +53,7 @@ export class PostgresRequestRepository implements RequestRepository {
 
   async list(params: RequestListParams, transaction?: Transaction): Promise<Page<MaintenanceRequest>> {
     const where = buildWhere(params);
-    const { offset, limit } = pagination(params.page, params.limit);
+    const { offset, limit } = pagination(params.page, params.limit, params.offset);
 
     const order: [string, 'ASC' | 'DESC'][] = [];
     if (params.sort) {
@@ -57,7 +64,15 @@ export class PostgresRequestRepository implements RequestRepository {
     order.push(['id', 'ASC']);
 
     const [rows, total] = await Promise.all([
-      MaintenanceRequestModel.findAll({ where, order, offset, limit, transaction, raw: true }),
+      MaintenanceRequestModel.findAll({
+        attributes: [...maintenanceRequestColumns],
+        where,
+        order,
+        offset,
+        limit,
+        transaction,
+        raw: true,
+      }),
       MaintenanceRequestModel.count({ where, transaction }),
     ]);
 
@@ -65,15 +80,31 @@ export class PostgresRequestRepository implements RequestRepository {
   }
 
   async findById(id: string, transaction?: Transaction): Promise<MaintenanceRequest | null> {
-    const row = await MaintenanceRequestModel.findByPk(id, { transaction, raw: true });
+    const row = await MaintenanceRequestModel.findByPk(id, {
+      attributes: [...maintenanceRequestColumns],
+      transaction,
+      raw: true,
+    });
     return row ? toRequest(row) : null;
   }
 
   async findCardById(id: string, transaction?: Transaction): Promise<RequestCard | null> {
-    const row = await MaintenanceRequestModel.findByPk(id, { transaction, raw: true });
+    const row = await MaintenanceRequestModel.findByPk(id, {
+      attributes: [...maintenanceRequestColumns],
+      include: [
+        {
+          model: RequestAssigneeModel,
+          as: 'assignees',
+          attributes: [...requestAssigneeColumns],
+          include: [
+            { model: TechnicianModel, as: 'technician', attributes: [...technicianColumns] },
+          ],
+        },
+      ],
+      transaction,
+    });
     if (!row) return null;
-    const assignees = await this.listAssignees(id, transaction);
-    return { ...toRequest(row), assignees };
+    return toRequestCard(row.get({ plain: true }) as Parameters<typeof toRequestCard>[0]);
   }
 
   async create(
@@ -165,7 +196,11 @@ export class PostgresRequestRepository implements RequestRepository {
           { transaction: tx },
         );
 
-        const row = await MaintenanceRequestModel.findByPk(id, { transaction: tx, raw: true });
+        const row = await MaintenanceRequestModel.findByPk(id, {
+          attributes: [...maintenanceRequestColumns],
+          transaction: tx,
+          raw: true,
+        });
         return row ? toRequest(row) : null;
       }),
     );
@@ -173,13 +208,13 @@ export class PostgresRequestRepository implements RequestRepository {
 
   async listAssignees(requestId: string, transaction?: Transaction): Promise<AssigneeView[]> {
     const rows = await RequestAssigneeModel.findAll({
+      attributes: [...requestAssigneeColumns],
       where: { requestId },
-      include: [{ model: TechnicianModel, as: 'technician' }],
+      include: [{ model: TechnicianModel, as: 'technician', attributes: [...technicianColumns] }],
       transaction,
-      raw: true,
       order: [['role', 'ASC'], ['assignedAt', 'ASC']],
     });
-    return rows.map((row) => toAssigneeView(row as unknown as Parameters<typeof toAssigneeView>[0]));
+    return rows.map((row) => toAssigneeView(row.get({ plain: true }) as AssigneeRow));
   }
 
   async listHistory(
@@ -187,6 +222,7 @@ export class PostgresRequestRepository implements RequestRepository {
     transaction?: Transaction,
   ): Promise<RequestStatusHistoryEntry[]> {
     const rows = await RequestStatusHistoryModel.findAll({
+      attributes: [...requestStatusHistoryColumns],
       where: { requestId },
       transaction,
       raw: true,
