@@ -1,6 +1,7 @@
-import type { Sequelize, Transaction } from 'sequelize';
+import type { Sequelize } from 'sequelize';
 
 import { createSequelize, waitForDatabase } from '../db/client.js';
+import type { TransactionRunner } from './common.js';
 import { initModels } from '../db/models/index.js';
 import type { EquipmentRepository } from './equipment-repository.js';
 import { PostgresEquipmentRepository } from './postgres/equipment-repository.js';
@@ -10,7 +11,7 @@ import type { RequestRepository } from './request-repository.js';
 export interface Storage {
   equipment: EquipmentRepository;
   requests: RequestRepository;
-  transaction<T>(action: (transaction: Transaction) => Promise<T>): Promise<T>;
+  transaction: TransactionRunner;
   close(): Promise<void>;
 }
 
@@ -20,10 +21,13 @@ export async function createStorage(): Promise<Storage> {
   await waitForDatabase(sequelize);
   initModels(sequelize);
 
+  const runInTransaction: TransactionRunner = (action) =>
+    sequelize.transaction((transaction) => action(transaction));
+
   return {
     equipment: new PostgresEquipmentRepository(sequelize),
-    requests: new PostgresRequestRepository(sequelize),
-    transaction: (action) => sequelize.transaction((transaction) => action(transaction)),
+    requests: new PostgresRequestRepository(),
+    transaction: runInTransaction,
     close: () => sequelize.close(),
   };
 }

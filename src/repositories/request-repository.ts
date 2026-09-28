@@ -1,6 +1,6 @@
 import type { MaintenanceRequest, RequestPriority, RequestStatus } from '../domain/request.js';
 import type { RequestStatusHistoryEntry } from '../domain/status-history.js';
-import type { AssigneeView } from '../domain/technician.js';
+import type { AssigneeView, Technician } from '../domain/technician.js';
 import type { RequestCreateInput, RequestUpdateInput } from '../schemas/request.js';
 import type { ListParams, Page, Transaction } from './common.js';
 
@@ -40,12 +40,17 @@ export interface RequestRepository {
   remove(id: string, transaction?: Transaction): Promise<boolean>;
   hasOpenRequests(equipmentId: string, transaction?: Transaction): Promise<boolean>;
 
-  changeStatus(
-    id: string,
-    change: StatusChange,
-    transaction?: Transaction,
-  ): Promise<MaintenanceRequest | null>;
+  changeStatus(id: string, change: StatusChange, transaction: Transaction): Promise<MaintenanceRequest | null>;
 
+  lockById(id: string, transaction: Transaction): Promise<MaintenanceRequest | null>;
+  findTechniciansByIds(ids: string[], transaction: Transaction): Promise<Technician[]>;
+  countAssignees(requestId: string, transaction: Transaction): Promise<number>;
+  replaceAssignees(
+    requestId: string,
+    assignees: AssigneeInput[],
+    transaction: Transaction,
+  ): Promise<AssigneeView[]>;
+  removeAssignee(requestId: string, technicianId: string, transaction: Transaction): Promise<boolean>;
   listAssignees(requestId: string, transaction?: Transaction): Promise<AssigneeView[]>;
   listHistory(requestId: string, transaction?: Transaction): Promise<RequestStatusHistoryEntry[]>;
 }

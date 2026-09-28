@@ -4,6 +4,8 @@ import type { RequestController } from '../controllers/request-controller.js';
 import { validate } from '../middleware/validate.js';
 import { PAGINATION_FIELDS, idParamsSchema } from '../schemas/common.js';
 import {
+  requestAssigneeParamsSchema,
+  requestAssigneesSchema,
   requestCreateSchema,
   requestListQuerySchema,
   requestStatusSchema,
@@ -22,6 +24,16 @@ export function createRequestsRouter(controller: RequestController): Router {
   router.get('/:id', validate({ params: idParamsSchema }), controller.getById);
   router.patch('/:id', validate({ params: idParamsSchema, body: requestUpdateSchema }), controller.update);
   router.patch('/:id/status', validate({ params: idParamsSchema, body: requestStatusSchema }), controller.changeStatus);
+  router.post(
+    '/:id/assignees',
+    validate({ params: idParamsSchema, body: requestAssigneesSchema }),
+    controller.assignCrew,
+  );
+  router.delete(
+    '/:id/assignees/:technicianId',
+    validate({ params: requestAssigneeParamsSchema }),
+    controller.removeAssignee,
+  );
   router.delete('/:id', validate({ params: idParamsSchema }), controller.remove);
 
   return router;

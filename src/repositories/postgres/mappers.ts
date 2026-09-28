@@ -112,6 +112,26 @@ export function toHistoryEntry(row: {
   };
 }
 
+export type TechnicianRow = {
+  id: string;
+  fullName: string;
+  specialization: string;
+  personnelNumber: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function toTechnician(row: TechnicianRow): Technician {
+  return {
+    id: row.id,
+    fullName: row.fullName,
+    specialization: row.specialization,
+    personnelNumber: row.personnelNumber,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
 export type AssigneeRow = {
   requestId: string;
   technicianId: string;
