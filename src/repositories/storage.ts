@@ -5,14 +5,17 @@ import type { TransactionRunner } from './common.js';
 import { initModels } from '../db/models/index.js';
 import type { EquipmentRepository } from './equipment-repository.js';
 import { PostgresEquipmentRepository } from './postgres/equipment-repository.js';
+import { PostgresReportRepository } from './postgres/report-repository.js';
 import { PostgresRequestRepository } from './postgres/request-repository.js';
 import { PostgresSiteRepository } from './postgres/site-repository.js';
+import type { ReportRepository } from './report-repository.js';
 import type { RequestRepository } from './request-repository.js';
 import type { SiteRepository } from './site-repository.js';
 
 export interface Storage {
   equipment: EquipmentRepository;
   requests: RequestRepository;
+  reports: ReportRepository;
   sites: SiteRepository;
   transaction: TransactionRunner;
   close(): Promise<void>;
@@ -30,6 +33,7 @@ export async function createStorage(): Promise<Storage> {
   return {
     equipment: new PostgresEquipmentRepository(sequelize),
     requests: new PostgresRequestRepository(),
+    reports: new PostgresReportRepository(sequelize),
     sites: new PostgresSiteRepository(sequelize),
     transaction: runInTransaction,
     close: () => sequelize.close(),
