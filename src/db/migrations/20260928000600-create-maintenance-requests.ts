@@ -11,7 +11,7 @@ export const up: MigrationFn<DbContext> = async ({ context }) => {
       description text NOT NULL,
       priority request_priority NOT NULL,
       status request_status NOT NULL DEFAULT 'new',
-      planned_at date,
+      planned_at timestamptz,
       author text NOT NULL,
       closed_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT now(),

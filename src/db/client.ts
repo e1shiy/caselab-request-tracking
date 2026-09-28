@@ -54,6 +54,7 @@ export function createSequelize(role: DbRole): Sequelize {
     dialectOptions: {
       connectionTimeoutMillis: config.DB_POOL_ACQUIRE_MS,
       application_name: `caselab-requests (${role})`,
+      options: '-c timezone=UTC',
     },
     logging: config.DB_LOG_QUERIES
       ? (sql: string) => {

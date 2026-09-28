@@ -21,7 +21,7 @@ export class EquipmentController {
 
   getById = asyncHandler(async (req, res) => {
     const { id } = req.valid.params as IdParams;
-    res.json(await this.service.getById(id));
+    res.json(await this.service.getCardById(id));
   });
 
   update = asyncHandler(async (req, res) => {
