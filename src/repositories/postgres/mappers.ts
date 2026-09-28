@@ -1,9 +1,7 @@
 import type { Equipment, EquipmentCard } from '../../domain/equipment.js';
-import type { EquipmentPassport } from '../../domain/passport.js';
 import type { MaintenanceRequest } from '../../domain/request.js';
 import type { RequestStatusHistoryEntry } from '../../domain/status-history.js';
 import type { AssigneeView } from '../../domain/technician.js';
-
 
 type EquipmentRow = {
   id: string;
@@ -38,10 +36,17 @@ export function toEquipment(row: EquipmentRow): Equipment {
   };
 }
 
-export function toEquipmentCard(
-  row: EquipmentRow,
-  passport: (EquipmentPassport & { createdAt: Date; updatedAt: Date }) | null,
-): EquipmentCard {
+export type PassportRow = {
+  equipmentId: string;
+  manufacturer: string;
+  model: string;
+  ratedPowerKw: number;
+  lastVerifiedAt: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function toEquipmentCard(row: EquipmentRow, passport: PassportRow | null): EquipmentCard {
   return {
     ...toEquipment(row),
     passport: passport

@@ -9,6 +9,7 @@ import type { Page } from '../common.js';
 import { withDbErrorTranslation } from '../db-errors.js';
 import type { EquipmentListParams, EquipmentRepository } from '../equipment-repository.js';
 import { toEquipment, toEquipmentCard } from './mappers.js';
+import type { PassportRow } from './mappers.js';
 
 const SORT_COLUMNS: Record<string, keyof Equipment> = {
   name: 'name',
@@ -70,14 +71,14 @@ export class PostgresEquipmentRepository implements EquipmentRepository {
     const row = await EquipmentModel.findByPk(id, {
       include: [{ model: EquipmentPassportModel, as: 'passport' }],
       transaction,
-      raw: true,
     });
     if (!row) return null;
 
-    const raw = row as unknown as Parameters<typeof toEquipmentCard>[0] & {
-      passport?: Parameters<typeof toEquipmentCard>[1];
+    const { passport, ...attributes } = row.get({ plain: true }) as Parameters<typeof toEquipmentCard>[0] & {
+      passport?: PassportRow | null;
     };
-    return toEquipmentCard(raw, raw.passport ?? null);
+
+    return toEquipmentCard(attributes, passport ?? null);
   }
 
   async create(
