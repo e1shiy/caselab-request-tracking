@@ -4,6 +4,8 @@ import type { Sort } from '../schemas/common.js';
 
 export type { Transaction };
 
+export type TransactionRunner = <T>(action: (transaction: Transaction) => Promise<T>) => Promise<T>;
+
 export interface Page<T> {
   rows: T[];
   total: number;
