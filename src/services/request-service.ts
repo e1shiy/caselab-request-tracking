@@ -31,7 +31,7 @@ export class RequestService {
     const { rows, total } = await this.requestRepo.list({
       status: query.status,
       priority: query.priority,
-      equipmentId: query.equipmentId,
+      equipmentId: equipmentId ?? query.equipmentId,
       dateFrom: query.dateFrom,
       dateTo: query.dateTo,
       sort: query.sort,

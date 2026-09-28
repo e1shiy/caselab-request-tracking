@@ -45,5 +45,4 @@ export const down: MigrationFn<DbContext> = async ({ context }) => {
   for (const statement of statements) {
     await sequelize.query(statement);
   }
-
 };
