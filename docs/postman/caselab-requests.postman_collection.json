@@ -16,11 +16,22 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment?page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
             "description": "Список с пагинацией и метаданными total/page/limit"
@@ -51,7 +62,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -59,8 +73,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ]
             },
             "description": "Создание записи; id сохраняется в переменную equipmentId"
           },
@@ -97,8 +116,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}"
+              ]
             }
           },
           "event": [
@@ -122,7 +147,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -130,8 +158,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ]
             }
           },
           "event": [
@@ -157,7 +190,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -165,8 +201,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ]
             }
           },
           "event": [
@@ -198,7 +239,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -206,8 +250,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ]
             },
             "description": "Некорректный синтаксис JSON. Ожидается 400, а не 422: тело не разобрано, поэтому проверка полей не выполнялась"
           },
@@ -239,8 +288,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/00000000-0000-4000-8000-000000000000",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "00000000-0000-4000-8000-000000000000"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "00000000-0000-4000-8000-000000000000"
+              ]
             }
           },
           "event": [
@@ -263,7 +318,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -271,8 +329,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}"
+              ]
             }
           },
           "event": [
@@ -298,7 +362,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -306,8 +373,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}"
+              ]
             },
             "description": "Попытка подменить служебные поля и добавить неизвестное поле: применяется только status, остальное отбрасывается"
           },
@@ -344,8 +417,15 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}/weather",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}", "weather"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}",
+                "weather"
+              ]
             }
           },
           "event": [
@@ -382,14 +462,305 @@
           ]
         },
         {
+          "name": "Сводка по площадке",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/00000000-0000-4000-8000-000000000001/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "sites",
+                "00000000-0000-4000-8000-000000000001",
+                "summary"
+              ]
+            }
+          },
+          "description": "Сид-идентификаторы площадок фиксированы: SITE-NORTH 00000000-0000-4000-8000-000000000001, SITE-SOUTH 00000000-0000-4000-8000-000000000002.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('идентификаторы и счётчики', () => {",
+                  "  pm.expect(body.siteId).to.equal('00000000-0000-4000-8000-000000000001');",
+                  "  pm.expect(body.siteName).to.be.a('string');",
+                  "  pm.expect(body.siteCode).to.be.a('string');",
+                  "  pm.expect(body.region).to.be.a('string');",
+                  "  pm.expect(body.equipmentTotal).to.be.a('number');",
+                  "  pm.expect(body.requestsTotal).to.be.a('number');",
+                  "});",
+                  "pm.test('посчитаны все статусы и приоритеты', () => {",
+                  "  ['new', 'in_progress', 'done', 'rejected'].forEach((key) =>",
+                  "    pm.expect(body.byStatus).to.have.property(key));",
+                  "  ['low', 'medium', 'high', 'critical'].forEach((key) =>",
+                  "    pm.expect(body.byPriority).to.have.property(key));",
+                  "});",
+                  "pm.test('сумма по статусам равна requestsTotal', () => {",
+                  "  const sum = Object.values(body.byStatus).reduce((a, b) => a + b, 0);",
+                  "  pm.expect(sum).to.equal(body.requestsTotal);",
+                  "});",
+                  "pm.test('среднее время закрытия согласовано', () => {",
+                  "  const closed = body.byStatus.done + body.byStatus.rejected;",
+                  "  if (closed === 0) {",
+                  "    pm.expect(body.averageCloseSeconds).to.be.null;",
+                  "  } else {",
+                  "    pm.expect(body.averageCloseSeconds).to.be.a('number');",
+                  "  }",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Несуществующая площадка (ожидаем 404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sites/00000000-0000-4000-8000-0000000000ee/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "sites",
+                "00000000-0000-4000-8000-0000000000ee",
+                "summary"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 404', () => pm.response.to.have.status(404));",
+                  "pm.test('код ошибки NOT_FOUND', () => {",
+                  "  pm.expect(pm.response.json().error.code).to.equal('NOT_FOUND');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Отчёт нагрузки на оборудование",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/equipment-load?dateFrom=2026-01-01&dateTo=2026-12-31&limit=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "equipment-load"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2026-01-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-12-31"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('применённые фильтры вернулись в ответе', () => {",
+                  "  pm.expect(body.applied.dateFrom).to.equal('2026-01-01');",
+                  "  pm.expect(body.applied.dateTo).to.equal('2026-12-31');",
+                  "  pm.expect(body.applied.limit).to.equal(10);",
+                  "});",
+                  "pm.test('строки отсортированы по убыванию заявок', () => {",
+                  "  pm.expect(body.data.length).to.be.at.least(1);",
+                  "  const totals = body.data.map((row) => row.requestsTotal);",
+                  "  pm.expect(totals).to.eql([...totals].sort((a, b) => b - a));",
+                  "});",
+                  "pm.test('поля строки заполнены и согласованы', () => {",
+                  "  const row = body.data[0];",
+                  "  pm.expect(row.serialNumber).to.be.a('string');",
+                  "  pm.expect(row.equipmentName).to.be.a('string');",
+                  "  pm.expect(row.requestsTotal).to.be.a('number');",
+                  "  pm.expect(row.requestsClosed).to.be.at.most(row.requestsTotal);",
+                  "  pm.expect(row.plannedHours).to.be.a('number');",
+                  "  pm.expect(row).to.have.property('lastServicedAt');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Отчёт с фильтром по площадке и статусу",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/equipment-load?siteId=00000000-0000-4000-8000-000000000002&status=done",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "equipment-load"
+              ],
+              "query": [
+                {
+                  "key": "siteId",
+                  "value": "00000000-0000-4000-8000-000000000002"
+                },
+                {
+                  "key": "status",
+                  "value": "done"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('строки относятся к площадке и закрыты', () => {",
+                  "  pm.expect(body.applied.siteId).to.equal('00000000-0000-4000-8000-000000000002');",
+                  "  pm.expect(body.applied.status).to.equal('done');",
+                  "  body.data.forEach((row) => {",
+                  "    pm.expect(row.siteId).to.equal('00000000-0000-4000-8000-000000000002');",
+                  "    pm.expect(row.requestsTotal).to.equal(row.requestsClosed);",
+                  "    pm.expect(row.lastServicedAt).to.be.a('string');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Отчёт с некорректным периодом (ожидаем 422)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/equipment-load?dateFrom=2026-05-01&dateTo=2026-04-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "equipment-load"
+              ],
+              "query": [
+                {
+                  "key": "dateFrom",
+                  "value": "2026-05-01"
+                },
+                {
+                  "key": "dateTo",
+                  "value": "2026-04-01"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 422', () => pm.response.to.have.status(422));",
+                  "pm.test('сообщение про порядок дат', () => {",
+                  "  const details = pm.response.json().error.details;",
+                  "  pm.expect(details.some((d) => d.message.includes('dateFrom не может быть позже'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Отчёт с превышенным лимитом (ожидаем 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports/equipment-load?limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports",
+                "equipment-load"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 400', () => pm.response.to.have.status(400));",
+                  "pm.test('код ошибки BAD_REQUEST', () => {",
+                  "  pm.expect(pm.response.json().error.code).to.equal('BAD_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Заявки конкретного оборудования",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}", "requests"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}",
+                "requests"
+              ]
             }
           },
           "event": [
@@ -428,11 +799,22 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/requests?page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             }
           },
@@ -460,13 +842,30 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/requests?status=new&priority=high&page=1&limit=20",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
               "query": [
-                { "key": "status", "value": "new" },
-                { "key": "priority", "value": "high" },
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" }
+                {
+                  "key": "status",
+                  "value": "new"
+                },
+                {
+                  "key": "priority",
+                  "value": "high"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
               ]
             },
             "description": "Позитивный сценарий фильтрации: ответ 200, и все заявки соответствуют заданным фильтрам"
@@ -498,9 +897,19 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/requests?status=unknown_status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"],
-              "query": [{ "key": "status", "value": "unknown_status" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "unknown_status"
+                }
+              ]
             },
             "description": "Пустой параметр фильтра считается незаданным, но непустое некорректное значение отклоняется"
           },
@@ -522,11 +931,96 @@
           ]
         },
         {
+          "name": "Пагинация через offset (ожидаем 200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?limit=3&offset=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "3"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            }
+          },
+          "description": "offset необязателен и приоритетнее page, поэтому страничный контракт не меняется.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('offset вернул первую страницу', () => {",
+                  "  pm.expect(body.data).to.have.lengthOf(3);",
+                  "  pm.expect(body.meta).to.have.property('total');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "offset за пределами диапазона (ожидаем 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?offset=10001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "offset",
+                  "value": "10001"
+                }
+              ]
+            }
+          },
+          "description": "Выход за границы пагинации — 400, а не 422.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 400', () => pm.response.to.have.status(400));",
+                  "pm.test('код ошибки BAD_REQUEST', () => {",
+                  "  pm.expect(pm.response.json().error.code).to.equal('BAD_REQUEST');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Создание заявки",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -534,8 +1028,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
             },
             "description": "Создание заявки; id сохраняется в переменную requestId"
           },
@@ -562,11 +1061,71 @@
           ]
         },
         {
+          "name": "in_progress без бригады (ожидаем 409)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}"
+            }
+          },
+          "description": "Заявку нельзя перевести в работу, пока не назначена бригада. Тест идёт сразу после «Создание заявки», поэтому бригада ещё пуста.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 409', () => pm.response.to.have.status(409));",
+                  "pm.test('код ошибки CONFLICT', () => {",
+                  "  pm.expect(pm.response.json().error.code).to.equal('CONFLICT');",
+                  "});",
+                  "pm.test('сообщение про бригаду', () => {",
+                  "  pm.expect(pm.response.json().error.message).to.include('бригад');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Заявка на несуществующее оборудование (ожидаем 404)",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -574,8 +1133,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
             }
           },
           "event": [
@@ -600,8 +1164,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
             }
           },
           "event": [
@@ -635,7 +1205,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -643,8 +1216,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
             }
           },
           "event": [
@@ -678,11 +1257,328 @@
           ]
         },
         {
+          "name": "Назначение бригады (ожидаем 201)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignees\": [\n    { \"technicianId\": \"{{leadTechnicianId}}\", \"role\": \"lead\", \"plannedHours\": 6 },\n    { \"technicianId\": \"{{memberTechnicianId}}\", \"role\": \"member\", \"plannedHours\": 4 }\n  ]\n}"
+            }
+          },
+          "description": "POST полностью заменяет состав бригады. В списке должен быть ровно один lead.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 201', () => pm.response.to.have.status(201));",
+                  "const card = pm.response.json();",
+                  "pm.test('в бригаде двое, ведущий ровно один', () => {",
+                  "  pm.expect(card.assignees).to.have.lengthOf(2);",
+                  "  const leads = card.assignees.filter((a) => a.role === 'lead');",
+                  "  pm.expect(leads).to.have.lengthOf(1);",
+                  "  pm.expect(leads[0].technicianId).to.equal(pm.collectionVariables.get('leadTechnicianId'));",
+                  "});",
+                  "pm.test('плановые часы и данные специалиста', () => {",
+                  "  const member = card.assignees.find((a) => a.role === 'member');",
+                  "  pm.expect(member.plannedHours).to.equal(4);",
+                  "  pm.expect(member.fullName).to.be.a('string');",
+                  "  pm.expect(member.personnelNumber).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Несуществующий специалист (ожидаем 404)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignees\": [\n    { \"technicianId\": \"00000000-0000-4000-8000-0000000000ff\", \"role\": \"lead\" }\n  ]\n}"
+            }
+          },
+          "description": "Проверка отката: несуществующий специалист отклоняется, прежняя бригада не меняется — это подтверждает следующий тест снятия второго специалиста.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 404', () => pm.response.to.have.status(404));",
+                  "pm.test('сообщение и перечень неизвестных', () => {",
+                  "  const error = pm.response.json().error;",
+                  "  pm.expect(error.code).to.equal('NOT_FOUND');",
+                  "  pm.expect(error.details.technicianIds).to.include('00000000-0000-4000-8000-0000000000ff');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Бригада без ведущего (ожидаем 422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignees\": [\n    { \"technicianId\": \"{{memberTechnicianId}}\", \"role\": \"member\" }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 422', () => pm.response.to.have.status(422));",
+                  "pm.test('сообщение про ровно одного lead', () => {",
+                  "  const details = pm.response.json().error.details;",
+                  "  pm.expect(details.some((d) => d.message.includes('ровно один ведущий'))).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Снятие ведущего при других исполнителях (ожидаем 409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees/{{leadTechnicianId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees",
+                "{{leadTechnicianId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 409', () => pm.response.to.have.status(409));",
+                  "pm.test('сообщение про замену lead', () => {",
+                  "  const error = pm.response.json().error;",
+                  "  pm.expect(error.code).to.equal('CONFLICT');",
+                  "  pm.expect(error.message).to.include('ведущего');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Снятие второго специалиста",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees/{{memberTechnicianId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees",
+                "{{memberTechnicianId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const card = pm.response.json();",
+                  "pm.test('остался только ведущий', () => {",
+                  "  pm.expect(card.assignees).to.have.lengthOf(1);",
+                  "  pm.expect(card.assignees[0].role).to.equal('lead');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Снятие единственного ведущего",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/assignees/{{leadTechnicianId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "assignees",
+                "{{leadTechnicianId}}"
+              ]
+            }
+          },
+          "description": "Снять ведущего можно, только если он один в бригаде: иначе на заявке останется бригада без ведущего.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "pm.test('бригада пуста', () => {",
+                  "  pm.expect(pm.response.json().assignees).to.eql([]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Переход new -> in_progress",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -690,8 +1586,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}", "status"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "status"
+              ]
             }
           },
           "event": [
@@ -745,7 +1648,10 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -753,8 +1659,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}", "status"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "status"
+              ]
             }
           },
           "event": [
@@ -804,11 +1717,115 @@
           ]
         },
         {
+          "name": "История переходов статуса",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/{{requestId}}/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "history"
+              ]
+            }
+          },
+          "description": "Журнал append-only: записи не редактируются и не удаляются.",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('requestId')) {",
+                  "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const entries = pm.response.json().data;",
+                  "pm.test('цепочка new -> in_progress -> done', () => {",
+                  "  const chain = [...entries].reverse().map((entry) => entry.newStatus);",
+                  "  pm.expect(chain).to.eql(['new', 'in_progress', 'done']);",
+                  "  pm.expect(entries[0].newStatus).to.equal('done');",
+                  "  pm.expect(entries[0].previousStatus).to.equal('in_progress');",
+                  "});",
+                  "pm.test('записи отсортированы от последней к первой', () => {",
+                  "  const times = entries.map((entry) => Date.parse(entry.changedAt));",
+                  "  pm.expect(times).to.eql([...times].sort((a, b) => b - a));",
+                  "});",
+                  "pm.test('у каждой записи есть служебные поля', () => {",
+                  "  entries.forEach((entry) => {",
+                  "    pm.expect(entry).to.have.property('id');",
+                  "    pm.expect(entry.requestId).to.equal(pm.collectionVariables.get('requestId'));",
+                  "    pm.expect(entry.changedAt).to.be.a('string');",
+                  "    pm.expect(entry.changedBy).to.be.a('string');",
+                  "    pm.expect(entry).to.have.property('comment');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "История заявки из сида",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests/00000000-0000-4000-8000-000000000032/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "00000000-0000-4000-8000-000000000032",
+                "history"
+              ]
+            }
+          },
+          "description": "Проверка значений, которые записывает не только API, но и сид.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 200', () => pm.response.to.have.status(200));",
+                  "const entries = pm.response.json().data;",
+                  "pm.test('три перехода и сохранённый комментарий', () => {",
+                  "  pm.expect(entries).to.have.lengthOf(3);",
+                  "  pm.expect(entries[0].newStatus).to.equal('done');",
+                  "  pm.expect(entries[0].comment).to.equal('Связь восстановлена');",
+                  "  pm.expect(entries[0].changedBy).to.equal('Петрова Анна Сергеевна');",
+                  "  pm.expect(entries[2].previousStatus).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Недопустимый переход done -> new (ожидаем 409)",
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -816,8 +1833,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}/status",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}", "status"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}",
+                "status"
+              ]
             }
           },
           "event": [
@@ -853,8 +1877,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/requests/{{requestId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests", "{{requestId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests",
+                "{{requestId}}"
+              ]
             }
           },
           "event": [
@@ -887,8 +1917,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentId}}"
+              ]
             },
             "description": "Удаление разрешено, так как заявки по оборудованию отсутствуют"
           },
@@ -908,15 +1944,25 @@
           "name": "Подготовка: создание оборудования для теста удаления",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Датчик контроля температуры\",\n  \"type\": \"sensor\",\n  \"serialNumber\": \"SN-003\",\n  \"location\": { \"lat\": 55.0, \"lon\": 37.0 },\n  \"installedAt\": \"2024-07-01\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/equipment",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment"
+              ]
             }
           },
           "event": [
@@ -937,15 +1983,25 @@
           "name": "(создание открытой заявки)",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"equipmentId\": \"{{equipmentWithOpenRequestId}}\",\n  \"title\": \"Аварийный выезд\",\n  \"priority\": \"critical\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/requests",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "requests"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ]
             }
           },
           "event": [
@@ -967,8 +2023,14 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/equipment/{{equipmentWithOpenRequestId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "equipment", "{{equipmentWithOpenRequestId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "equipment",
+                "{{equipmentWithOpenRequestId}}"
+              ]
             }
           },
           "event": [
@@ -993,55 +2055,60 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/api/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "health"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
             },
             "description": "Отправляет запросы по кругу до первого 429 и проверяет, что лимит исчерпан. Запускать последним: расходует квоту на окно. Если RATE_LIMIT_MAX изменён в окружении сервера, увеличьте rateLimitMax в переменных коллекции."
           },
           "event": [
-              {
-                "listen": "test",
-                "script": {
-                  "type": "text/javascript",
-                  "exec": [
-                    "const url = pm.variables.replaceIn('{{baseUrl}}/api/health');",
-                    "const maxRequests = Number(pm.collectionVariables.get('rateLimitMax')) + 50;",
-                    "let sent = 0;",
-                    "let limited = null;",
-                    "let failure = null;",
-                    "",
-                    "function flood(cb) {",
-                    "  if (limited !== null || failure !== null || sent >= maxRequests) { cb(); return; }",
-                    "  sent++;",
-                    "  pm.sendRequest(url, (err, res) => {",
-                    "    if (err) { failure = err; return cb(); }",
-                    "    if (res.code === 429) { limited = res; return cb(); }",
-                    "    flood(cb);",
-                    "  });",
-                    "}",
-                    "",
-                    "flood(() => {",
-                    "  pm.test('лимит частоты исчерпан, получен 429', () => {",
-                    "    pm.expect(failure, 'запрос не выполнился').to.eql(null);",
-                    "    pm.expect(limited, 'ожидался 429, но все ' + sent + ' запросов прошли').to.not.eql(null);",
-                    "    pm.expect(limited.code).to.eql(429);",
-                    "  });",
-                    "  pm.test('ответ 429 в едином формате ошибки', () => {",
-                    "    if (limited === null) return;",
-                    "    const body = limited.json();",
-                    "    pm.expect(body.error.code).to.equal('RATE_LIMIT_EXCEEDED');",
-                    "    pm.expect(body.error.message).to.be.a('string');",
-                    "    pm.expect(body.error.requestId).to.be.a('string');",
-                    "  });",
-                    "  pm.test('присутствуют заголовки RateLimit-*', () => {",
-                    "    if (limited === null) return;",
-                    "    pm.expect(limited.headers.get('RateLimit-Limit'), 'заголовок RateLimit-Limit').to.be.a('string');",
-                    "  });",
-                    "});"
-                  ]
-                }
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const url = pm.variables.replaceIn('{{baseUrl}}/api/health');",
+                  "const maxRequests = Number(pm.collectionVariables.get('rateLimitMax')) + 50;",
+                  "let sent = 0;",
+                  "let limited = null;",
+                  "let failure = null;",
+                  "",
+                  "function flood(cb) {",
+                  "  if (limited !== null || failure !== null || sent >= maxRequests) { cb(); return; }",
+                  "  sent++;",
+                  "  pm.sendRequest(url, (err, res) => {",
+                  "    if (err) { failure = err; return cb(); }",
+                  "    if (res.code === 429) { limited = res; return cb(); }",
+                  "    flood(cb);",
+                  "  });",
+                  "}",
+                  "",
+                  "flood(() => {",
+                  "  pm.test('лимит частоты исчерпан, получен 429', () => {",
+                  "    pm.expect(failure, 'запрос не выполнился').to.eql(null);",
+                  "    pm.expect(limited, 'ожидался 429, но все ' + sent + ' запросов прошли').to.not.eql(null);",
+                  "    pm.expect(limited.code).to.eql(429);",
+                  "  });",
+                  "  pm.test('ответ 429 в едином формате ошибки', () => {",
+                  "    if (limited === null) return;",
+                  "    const body = limited.json();",
+                  "    pm.expect(body.error.code).to.equal('RATE_LIMIT_EXCEEDED');",
+                  "    pm.expect(body.error.message).to.be.a('string');",
+                  "    pm.expect(body.error.requestId).to.be.a('string');",
+                  "  });",
+                  "  pm.test('присутствуют заголовки RateLimit-*', () => {",
+                  "    if (limited === null) return;",
+                  "    pm.expect(limited.headers.get('RateLimit-Limit'), 'заголовок RateLimit-Limit').to.be.a('string');",
+                  "  });",
+                  "});"
+                ]
               }
-            ]
+            }
+          ]
         }
       ]
     }

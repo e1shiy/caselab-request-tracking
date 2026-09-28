@@ -123,7 +123,21 @@ export class PostgresRequestRepository implements RequestRepository {
         },
         { transaction, raw: true },
       );
-      return toRequest(row);
+
+      const request = toRequest(row);
+
+      await RequestStatusHistoryModel.create(
+        {
+          requestId: request.id,
+          previousStatus: null,
+          newStatus: request.status,
+          changedBy: author,
+          comment: 'Заявка создана',
+        },
+        { transaction },
+      );
+
+      return request;
     });
   }
 
