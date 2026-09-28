@@ -5,7 +5,6 @@ import { createSequelize, waitForDatabase } from '../client.js';
 import { initModels } from '../models/index.js';
 import { ENUM_TYPES } from '../migrations/enum-types.js';
 
-
 interface ColumnInfo {
   attname: string;
   type_name: string;

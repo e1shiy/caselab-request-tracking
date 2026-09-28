@@ -15,6 +15,7 @@
     "db:migrate": "tsx src/db/cli/migrate.ts up",
     "db:migrate:status": "tsx src/db/cli/migrate.ts status",
     "db:rollback": "tsx src/db/cli/migrate.ts down",
+    "db:seed": "tsx src/db/cli/seed.ts",
     "db:reset": "tsx src/db/cli/migrate.ts reset",
     "db:verify": "tsx src/db/cli/verify-schema.ts"
   },
