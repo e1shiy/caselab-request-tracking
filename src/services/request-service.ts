@@ -70,7 +70,8 @@ export class RequestService {
     const equipment = await this.equipmentRepo.findById(input.equipmentId);
     if (!equipment) throw new NotFoundError('Оборудование не найдено');
 
-    return this.requestRepo.create(input, input.author ?? config.DEFAULT_AUTHOR);
+    const author = input.author ?? config.DEFAULT_AUTHOR;
+    return this.runInTransaction((transaction) => this.requestRepo.create(input, author, transaction));
   }
 
   async update(id: string, input: RequestUpdateInput): Promise<MaintenanceRequest> {
