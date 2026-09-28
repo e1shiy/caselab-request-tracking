@@ -7,6 +7,7 @@ export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 export interface MaintenanceRequest {
   id: string;
   equipmentId: string;
+  author?: string;
   title: string;
   description: string;
   priority: RequestPriority;

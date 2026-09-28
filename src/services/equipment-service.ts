@@ -1,6 +1,4 @@
-import { randomUUID } from 'node:crypto';
-
-import type { Equipment } from '../domain/equipment.js';
+import type { Equipment, EquipmentCard, EquipmentStatus, EquipmentType } from '../domain/equipment.js';
 import { ConflictError, NotFoundError } from '../errors.js';
 import type { EquipmentRepository, RequestRepository } from '../repositories/index.js';
 import type { EquipmentCreateInput, EquipmentListQuery, EquipmentUpdateInput } from '../schemas/equipment.js';
@@ -10,8 +8,6 @@ export interface EquipmentListResult {
   meta: { total: number; page: number; limit: number };
 }
 
-const OPEN_REQUEST_STATUSES = ['new', 'in_progress'];
-
 export class EquipmentService {
   constructor(
     private readonly equipmentRepo: EquipmentRepository,
@@ -19,34 +15,17 @@ export class EquipmentService {
   ) {}
 
   async list(query: EquipmentListQuery): Promise<EquipmentListResult> {
-    let items = await this.equipmentRepo.all();
+    const { rows, total } = await this.equipmentRepo.list({
+      status: query.status as EquipmentStatus | undefined,
+      type: query.type as EquipmentType | undefined,
+      installedFrom: query.installedFrom,
+      installedTo: query.installedTo,
+      sort: query.sort,
+      page: query.page,
+      limit: query.limit,
+    });
 
-    if (query.status !== undefined) items = items.filter((item) => item.status === query.status);
-    if (query.type !== undefined) items = items.filter((item) => item.type === query.type);
-
-    const { installedFrom, installedTo } = query;
-    if (installedFrom !== undefined) {
-      items = items.filter((item) => item.installedAt >= installedFrom);
-    }
-    if (installedTo !== undefined) {
-      items = items.filter((item) => item.installedAt <= installedTo);
-    }
-
-    if (query.sort !== undefined) {
-      const { field, order } = query.sort;
-      items.sort((a, b) => {
-        const left = String(a[field as keyof Equipment] ?? '');
-        const right = String(b[field as keyof Equipment] ?? '');
-        const result = left.localeCompare(right);
-        return order === 'asc' ? result : -result;
-      });
-    }
-
-    const total = items.length;
-    const offset = (query.page - 1) * query.limit;
-    const data = items.slice(offset, offset + query.limit);
-
-    return { data, meta: { total, page: query.page, limit: query.limit } };
+    return { data: rows, meta: { total, page: query.page, limit: query.limit } };
   }
 
   async getById(id: string): Promise<Equipment> {
@@ -55,58 +34,41 @@ export class EquipmentService {
     return equipment;
   }
 
-  async create(input: EquipmentCreateInput): Promise<Equipment> {
-    await this.assertSerialNumberUnique(input.serialNumber);
-
-    const now = new Date().toISOString();
-    const equipment: Equipment = {
-      id: randomUUID(),
-      ...input,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await this.equipmentRepo.save(equipment);
+  async getCardById(id: string): Promise<EquipmentCard> {
+    const equipment = await this.equipmentRepo.findCardById(id);
+    if (!equipment) throw new NotFoundError('Оборудование не найдено');
     return equipment;
   }
 
-  async update(id: string, input: EquipmentUpdateInput): Promise<Equipment> {
-    const equipment = await this.getById(id);
+  async create(input: EquipmentCreateInput): Promise<Equipment> {
+    await this.assertSerialNumberUnique(input.serialNumber);
+    return this.equipmentRepo.create(input, null);
+  }
 
-    if (input.serialNumber !== undefined && input.serialNumber !== equipment.serialNumber) {
+  async update(id: string, input: EquipmentUpdateInput): Promise<Equipment> {
+    await this.getById(id);
+
+    if (input.serialNumber !== undefined) {
       await this.assertSerialNumberUnique(input.serialNumber, id);
     }
 
-    const updated: Equipment = {
-      ...equipment,
-      ...input,
-      id: equipment.id,
-      createdAt: equipment.createdAt,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await this.equipmentRepo.save(updated);
+    const updated = await this.equipmentRepo.update(id, input, undefined);
+    if (!updated) throw new NotFoundError('Оборудование не найдено');
     return updated;
   }
 
   async delete(id: string): Promise<void> {
     await this.getById(id);
 
-    const requests = await this.requestRepo.findByEquipmentId(id);
-    const hasOpen = requests.some((request) => OPEN_REQUEST_STATUSES.includes(request.status));
-
-    if (hasOpen) {
+    if (await this.requestRepo.hasOpenRequests(id)) {
       throw new ConflictError('Нельзя удалить оборудование с открытыми заявками: завершите или отклоните их');
     }
 
     await this.equipmentRepo.remove(id);
-    await this.requestRepo.removeByEquipmentId(id);
   }
 
   private async assertSerialNumberUnique(serialNumber: string, excludeId?: string): Promise<void> {
-    const all = await this.equipmentRepo.all();
-    const duplicate = all.some((item) => item.serialNumber === serialNumber && item.id !== excludeId);
-    if (duplicate) {
+    if (await this.equipmentRepo.existsBySerialNumber(serialNumber, excludeId)) {
       throw new ConflictError(`Оборудование с серийным номером «${serialNumber}» уже существует`);
     }
   }

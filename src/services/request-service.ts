@@ -1,5 +1,4 @@
-import { randomUUID } from 'node:crypto';
-
+import { config } from '../config.js';
 import type { MaintenanceRequest, RequestStatus } from '../domain/request.js';
 import { ConflictError, NotFoundError } from '../errors.js';
 import type { EquipmentRepository, RequestRepository } from '../repositories/index.js';
@@ -29,36 +28,18 @@ export class RequestService {
       if (!equipment) throw new NotFoundError('Оборудование не найдено');
     }
 
-    let items =
-      equipmentId !== undefined
-        ? await this.requestRepo.findByEquipmentId(equipmentId)
-        : await this.requestRepo.all();
+    const { rows, total } = await this.requestRepo.list({
+      status: query.status,
+      priority: query.priority,
+      equipmentId: query.equipmentId,
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      sort: query.sort,
+      page: query.page,
+      limit: query.limit,
+    });
 
-    if (query.status !== undefined) items = items.filter((item) => item.status === query.status);
-    if (query.priority !== undefined) items = items.filter((item) => item.priority === query.priority);
-    if (query.equipmentId !== undefined) items = items.filter((item) => item.equipmentId === query.equipmentId);
-    if (query.dateFrom !== undefined) {
-      items = items.filter((item) => item.createdAt.slice(0, 10) >= query.dateFrom!);
-    }
-    if (query.dateTo !== undefined) {
-      items = items.filter((item) => item.createdAt.slice(0, 10) <= query.dateTo!);
-    }
-
-    if (query.sort !== undefined) {
-      const { field, order } = query.sort;
-      items.sort((a, b) => {
-        const left = a[field as keyof MaintenanceRequest] ?? '';
-        const right = b[field as keyof MaintenanceRequest] ?? '';
-        const result = String(left).localeCompare(String(right));
-        return order === 'asc' ? result : -result;
-      });
-    }
-
-    const total = items.length;
-    const offset = (query.page - 1) * query.limit;
-    const data = items.slice(offset, offset + query.limit);
-
-    return { data, meta: { total, page: query.page, limit: query.limit } };
+    return { data: rows, meta: { total, page: query.page, limit: query.limit } };
   }
 
   async getById(id: string): Promise<MaintenanceRequest> {
@@ -71,38 +52,12 @@ export class RequestService {
     const equipment = await this.equipmentRepo.findById(input.equipmentId);
     if (!equipment) throw new NotFoundError('Оборудование не найдено');
 
-    const now = new Date().toISOString();
-    const request: MaintenanceRequest = {
-      id: randomUUID(),
-      equipmentId: input.equipmentId,
-      title: input.title,
-      description: input.description ?? '',
-      priority: input.priority,
-      status: 'new',
-      plannedAt: input.plannedAt,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await this.requestRepo.save(request);
-    return request;
+    return this.requestRepo.create(input, config.DEFAULT_AUTHOR);
   }
 
   async update(id: string, input: RequestUpdateInput): Promise<MaintenanceRequest> {
-    const request = await this.getById(id);
-
-    const updated: MaintenanceRequest = {
-      ...request,
-      ...input,
-      id: request.id,
-      equipmentId: request.equipmentId,
-      status: request.status,
-      plannedAt: input.plannedAt === undefined ? request.plannedAt : (input.plannedAt ?? undefined),
-      createdAt: request.createdAt,
-      updatedAt: new Date().toISOString(),
-    };
-
-    await this.requestRepo.save(updated);
+    const updated = await this.requestRepo.update(id, input);
+    if (!updated) throw new NotFoundError('Заявка не найдена');
     return updated;
   }
 
@@ -118,18 +73,21 @@ export class RequestService {
       throw new ConflictError(`Переход из статуса «${request.status}» в «${status}» недопустим`);
     }
 
-    const updated: MaintenanceRequest = {
-      ...request,
+    const updated = await this.requestRepo.changeStatus(id, {
+      expectedStatus: request.status,
       status,
-      updatedAt: new Date().toISOString(),
-    };
+      changedBy: config.DEFAULT_AUTHOR,
+    });
 
-    await this.requestRepo.save(updated);
+    if (!updated) {
+      throw new ConflictError('Статус заявки изменился параллельно, повторите запрос');
+    }
+
     return updated;
   }
 
   async delete(id: string): Promise<void> {
-    await this.getById(id);
-    await this.requestRepo.remove(id);
+    const request = await this.getById(id);
+    await this.requestRepo.remove(request.id);
   }
 }

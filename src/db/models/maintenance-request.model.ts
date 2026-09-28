@@ -20,7 +20,7 @@ export class MaintenanceRequestModel extends Model<
   declare description: string;
   declare priority: RequestPriority;
   declare status: CreationOptional<RequestStatus>;
-  declare plannedAt: string | null;
+  declare plannedAt: Date | null;
   declare author: CreationOptional<string>;
   declare closedAt: Date | null;
   declare createdAt: CreationOptional<Date>;
@@ -45,7 +45,7 @@ export function defineMaintenanceRequestModel(sequelize: Sequelize): void {
         allowNull: false,
         defaultValue: 'new',
       },
-      plannedAt: { type: DataTypes.DATEONLY, allowNull: true },
+      plannedAt: { type: DataTypes.DATE, allowNull: true },
       author: { type: DataTypes.TEXT, allowNull: false },
       closedAt: { type: DataTypes.DATE, allowNull: true },
       createdAt: { type: DataTypes.DATE, allowNull: false },
