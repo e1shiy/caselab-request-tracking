@@ -1,3 +1,5 @@
+import type { EquipmentPassport } from './passport.js';
+
 export const EQUIPMENT_TYPES = ['turbine', 'inverter', 'sensor', 'substation'] as const;
 export type EquipmentType = (typeof EQUIPMENT_TYPES)[number];
 
@@ -11,6 +13,7 @@ export interface EquipmentLocation {
 
 export interface Equipment {
   id: string;
+  siteId?: string;
   name: string;
   type: EquipmentType;
   serialNumber: string;
@@ -19,4 +22,8 @@ export interface Equipment {
   installedAt: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EquipmentCard extends Equipment {
+  passport: EquipmentPassport | null;
 }
