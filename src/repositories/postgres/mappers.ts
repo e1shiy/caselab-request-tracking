@@ -1,4 +1,5 @@
 import type { Equipment, EquipmentCard } from '../../domain/equipment.js';
+import type { Site } from '../../domain/site.js';
 import type { MaintenanceRequest } from '../../domain/request.js';
 import type { RequestCard } from '../request-repository.js';
 import type { RequestStatusHistoryEntry } from '../../domain/status-history.js';
@@ -159,4 +160,28 @@ export type RequestCardRow = RequestRow & { assignees?: AssigneeRow[] };
 export function toRequestCard(row: RequestCardRow): RequestCard {
   const { assignees, ...attributes } = row;
   return { ...toRequest(attributes), assignees: (assignees ?? []).map(toAssigneeView) };
+}
+
+export type SiteRow = {
+  id: string;
+  name: string;
+  code: string;
+  region: string;
+  latitude: number;
+  longitude: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function toSite(row: SiteRow): Site {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    region: row.region,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
 }
