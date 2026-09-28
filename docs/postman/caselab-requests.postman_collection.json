@@ -1013,6 +1013,50 @@
           ]
         },
         {
+          "name": "page за пределами диапазона (ожидаем 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/requests?page=600&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "requests"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "600"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "description": "Смещение, вычисленное из page, тоже ограничено: page=600 при limit=20 даёт offset 11980.",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('код ответа 400', () => pm.response.to.have.status(400));",
+                  "pm.test('ошибка указывает на page', () => {",
+                  "  const error = pm.response.json().error;",
+                  "  pm.expect(error.code).to.equal('BAD_REQUEST');",
+                  "  pm.expect(error.details.map((d) => d.field)).to.eql(['page']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Создание заявки",
           "request": {
             "method": "POST",
