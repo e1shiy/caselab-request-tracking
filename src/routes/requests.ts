@@ -22,6 +22,7 @@ export function createRequestsRouter(controller: RequestController): Router {
   );
   router.post('/', validate({ body: requestCreateSchema }), controller.create);
   router.get('/:id', validate({ params: idParamsSchema }), controller.getById);
+  router.get('/:id/history', validate({ params: idParamsSchema }), controller.history);
   router.patch('/:id', validate({ params: idParamsSchema, body: requestUpdateSchema }), controller.update);
   router.patch('/:id/status', validate({ params: idParamsSchema, body: requestStatusSchema }), controller.changeStatus);
   router.post(
