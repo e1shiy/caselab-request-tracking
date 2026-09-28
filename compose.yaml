@@ -1,0 +1,32 @@
+name: caselab-request-tracking
+
+services:
+  db:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      # Роль-суперпользователь: только для миграций и сидов (DDL).
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_MIGRATION_USER}
+      POSTGRES_PASSWORD: ${DB_MIGRATION_PASSWORD}
+      # Роль приложения: создаётся в db/init, без права менять схему.
+      APP_DB_USER: ${DB_USER}
+      APP_DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # PostgreSQL 18: PGDATA версионный (/var/lib/postgresql/18/docker), и объявленный
+      # в образе VOLUME — /var/lib/postgresql. Монтировать в /var/lib/postgresql/data
+      # нельзя: том останется пустым, данные уйдут в анонимный том, и база будет
+      # пустой при каждом пересоздании контейнера.
+      - pgdata:/var/lib/postgresql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
