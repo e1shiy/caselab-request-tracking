@@ -1,4 +1,4 @@
-import { Op, type Sequelize, type Transaction, type WhereOptions } from 'sequelize';
+import { Op, type Transaction, type WhereOptions } from 'sequelize';
 
 import { MaintenanceRequestModel } from '../../db/models/index.js';
 import { RequestAssigneeModel } from '../../db/models/request-assignee.model.js';
@@ -6,12 +6,13 @@ import { RequestStatusHistoryModel } from '../../db/models/request-status-histor
 import { TechnicianModel } from '../../db/models/technician.model.js';
 import type { MaintenanceRequest } from '../../domain/request.js';
 import type { RequestStatusHistoryEntry } from '../../domain/status-history.js';
-import type { AssigneeView } from '../../domain/technician.js';
+import type { AssigneeView, Technician } from '../../domain/technician.js';
 import type { RequestCreateInput, RequestUpdateInput } from '../../schemas/request.js';
 import { pagination } from '../common.js';
 import type { Page } from '../common.js';
 import { withDbErrorTranslation } from '../db-errors.js';
 import type {
+  AssigneeInput,
   RequestCard,
   RequestListParams,
   RequestRepository,
@@ -23,7 +24,7 @@ import {
   requestStatusHistoryColumns,
   technicianColumns,
 } from './attributes.js';
-import { toAssigneeView, toHistoryEntry, toRequest, toRequestCard } from './mappers.js';
+import { toAssigneeView, toHistoryEntry, toRequest, toRequestCard, toTechnician } from './mappers.js';
 import type { AssigneeRow } from './mappers.js';
 
 const SORT_COLUMNS: Record<string, keyof MaintenanceRequest> = {
@@ -49,8 +50,6 @@ function buildWhere(params: RequestListParams): WhereOptions {
 }
 
 export class PostgresRequestRepository implements RequestRepository {
-  constructor(private readonly sequelize: Sequelize) {}
-
   async list(params: RequestListParams, transaction?: Transaction): Promise<Page<MaintenanceRequest>> {
     const where = buildWhere(params);
     const { offset, limit } = pagination(params.page, params.limit, params.offset);
@@ -167,43 +166,94 @@ export class PostgresRequestRepository implements RequestRepository {
   async changeStatus(
     id: string,
     change: StatusChange,
-    transaction?: Transaction,
+    transaction: Transaction,
   ): Promise<MaintenanceRequest | null> {
-    return withDbErrorTranslation({ missing: 'Заявка не найдена' }, async () =>
-      this.sequelize.transaction(async (tx) => {
-        const closing = change.status === 'done' || change.status === 'rejected';
-        const reopening = change.status === 'new' || change.status === 'in_progress';
+    return withDbErrorTranslation({ missing: 'Заявка не найдена' }, async () => {
+      const closing = change.status === 'done' || change.status === 'rejected';
+      const reopening = change.status === 'new' || change.status === 'in_progress';
 
-        const [count] = await MaintenanceRequestModel.update(
-          {
-            status: change.status,
-            ...(closing ? { closedAt: new Date() } : {}),
-            ...(reopening ? { closedAt: null } : {}),
-          },
-          { where: { id, status: change.expectedStatus }, transaction: tx },
+      const [count] = await MaintenanceRequestModel.update(
+        {
+          status: change.status,
+          ...(closing ? { closedAt: new Date() } : {}),
+          ...(reopening ? { closedAt: null } : {}),
+        },
+        { where: { id, status: change.expectedStatus }, transaction },
+      );
+
+      if (count === 0) return null;
+
+      await RequestStatusHistoryModel.create(
+        {
+          requestId: id,
+          previousStatus: change.expectedStatus,
+          newStatus: change.status,
+          changedBy: change.changedBy,
+          comment: change.comment ?? null,
+        },
+        { transaction },
+      );
+
+      const row = await MaintenanceRequestModel.findByPk(id, {
+        attributes: [...maintenanceRequestColumns],
+        transaction,
+        raw: true,
+      });
+      return row ? toRequest(row) : null;
+    });
+  }
+
+  async lockById(id: string, transaction: Transaction): Promise<MaintenanceRequest | null> {
+    const row = await MaintenanceRequestModel.findByPk(id, {
+      attributes: [...maintenanceRequestColumns],
+      transaction,
+      raw: true,
+      lock: transaction.LOCK.UPDATE,
+    });
+    return row ? toRequest(row) : null;
+  }
+
+  async findTechniciansByIds(ids: string[], transaction: Transaction): Promise<Technician[]> {
+    if (ids.length === 0) return [];
+    const rows = await TechnicianModel.findAll({
+      attributes: [...technicianColumns],
+      where: { id: { [Op.in]: ids } },
+      transaction,
+      raw: true,
+    });
+    return rows.map((row) => toTechnician(row));
+  }
+
+  async countAssignees(requestId: string, transaction: Transaction): Promise<number> {
+    return RequestAssigneeModel.count({ where: { requestId }, transaction });
+  }
+
+  async replaceAssignees(
+    requestId: string,
+    assignees: AssigneeInput[],
+    transaction: Transaction,
+  ): Promise<AssigneeView[]> {
+    return withDbErrorTranslation(
+      { missing: 'Специалист не найден', unique: 'В бригаде заявки может быть только один ведущий' },
+      async () => {
+        await RequestAssigneeModel.destroy({ where: { requestId }, transaction });
+        await RequestAssigneeModel.bulkCreate(
+          assignees.map((assignee) => ({
+            requestId,
+            technicianId: assignee.technicianId,
+            role: assignee.role,
+            plannedHours: assignee.plannedHours ?? null,
+          })),
+          { transaction },
         );
-
-        if (count === 0) return null;
-
-        await RequestStatusHistoryModel.create(
-          {
-            requestId: id,
-            previousStatus: change.expectedStatus,
-            newStatus: change.status,
-            changedBy: change.changedBy,
-            comment: change.comment ?? null,
-          },
-          { transaction: tx },
-        );
-
-        const row = await MaintenanceRequestModel.findByPk(id, {
-          attributes: [...maintenanceRequestColumns],
-          transaction: tx,
-          raw: true,
-        });
-        return row ? toRequest(row) : null;
-      }),
+        return this.listAssignees(requestId, transaction);
+      },
     );
+  }
+
+  async removeAssignee(requestId: string, technicianId: string, transaction: Transaction): Promise<boolean> {
+    const count = await RequestAssigneeModel.destroy({ where: { requestId, technicianId }, transaction });
+    return count > 0;
   }
 
   async listAssignees(requestId: string, transaction?: Transaction): Promise<AssigneeView[]> {

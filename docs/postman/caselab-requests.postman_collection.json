@@ -702,7 +702,27 @@
                 "exec": [
                   "if (!pm.collectionVariables.get('requestId')) {",
                   "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
-                  "}"
+                  "}",
+                  "",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{baseUrl}}/api/requests/{{requestId}}/assignees'),",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: {",
+                  "    mode: 'raw',",
+                  "    raw: JSON.stringify({",
+                  "      assignees: [",
+                  "        { technicianId: pm.collectionVariables.get('leadTechnicianId'), role: 'lead', plannedHours: 4 },",
+                  "        { technicianId: pm.collectionVariables.get('memberTechnicianId'), role: 'member' },",
+                  "      ],",
+                  "    }),",
+                  "  },",
+                  "}, function (err, crew) {",
+                  "  if (err) throw err;",
+                  "  if (crew.code !== 201) {",
+                  "    throw new Error('Не удалось назначить бригаду: ' + crew.code + ' ' + crew.responseBody);",
+                  "  }",
+                  "});"
                 ]
               }
             },
@@ -745,7 +765,27 @@
                 "exec": [
                   "if (!pm.collectionVariables.get('requestId')) {",
                   "  throw new Error('Сначала выполните «Создание заявки» в группе Maintenance requests');",
-                  "}"
+                  "}",
+                  "",
+                  "pm.sendRequest({",
+                  "  url: pm.variables.replaceIn('{{baseUrl}}/api/requests/{{requestId}}/assignees'),",
+                  "  method: 'POST',",
+                  "  header: { 'Content-Type': 'application/json' },",
+                  "  body: {",
+                  "    mode: 'raw',",
+                  "    raw: JSON.stringify({",
+                  "      assignees: [",
+                  "        { technicianId: pm.collectionVariables.get('leadTechnicianId'), role: 'lead', plannedHours: 4 },",
+                  "        { technicianId: pm.collectionVariables.get('memberTechnicianId'), role: 'member' },",
+                  "      ],",
+                  "    }),",
+                  "  },",
+                  "}, function (err, crew) {",
+                  "  if (err) throw err;",
+                  "  if (crew.code !== 201) {",
+                  "    throw new Error('Не удалось назначить бригаду: ' + crew.code + ' ' + crew.responseBody);",
+                  "  }",
+                  "});"
                 ]
               }
             },
@@ -1026,6 +1066,14 @@
     {
       "key": "rateLimitMax",
       "value": "100"
+    },
+    {
+      "key": "leadTechnicianId",
+      "value": "00000000-0000-4000-8000-000000000011"
+    },
+    {
+      "key": "memberTechnicianId",
+      "value": "00000000-0000-4000-8000-000000000012"
     }
   ]
 }

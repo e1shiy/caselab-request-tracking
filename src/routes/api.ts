@@ -15,7 +15,7 @@ export function createApiRouter(storage: Storage): Router {
     res.json({ status: 'ok' });
   });
 
-  const requestService = new RequestService(storage.requests, storage.equipment);
+  const requestService = new RequestService(storage.requests, storage.equipment, storage.transaction);
   const requestController = new RequestController(requestService);
   const weatherController = new WeatherController(new WeatherService(storage.equipment));
 
