@@ -54,11 +54,12 @@ export function boundOffset(
   value: { page: number; limit: number; offset?: number },
   ctx: z.RefinementCtx,
 ): void {
-  const offset = value.offset ?? (value.page - 1) * value.limit;
+  if (value.offset !== undefined) return;
+  const offset = (value.page - 1) * value.limit;
   if (offset > MAX_OFFSET) {
     ctx.addIssue({
       code: 'custom',
-      path: [value.offset === undefined ? 'page' : 'offset'],
+      path: ['page'],
       message: `Смещение выборки не может превышать ${MAX_OFFSET}`,
     });
   }
