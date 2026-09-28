@@ -6,7 +6,9 @@ import {
   equipmentTypeFilterSchema,
   idParamsSchema,
   isoDateSchema,
+  boundOffset,
   limitSchema,
+  offsetSchema,
   optionalDateFilter,
   pageSchema,
   sortSchema,
@@ -56,7 +58,9 @@ export const equipmentListQuerySchema = z
     sort: sortSchema(EQUIPMENT_SORT_FIELDS),
     page: pageSchema,
     limit: limitSchema,
+    offset: offsetSchema,
   })
+  .superRefine(boundOffset)
   .refine(
     (value) =>
       value.installedFrom === undefined ||

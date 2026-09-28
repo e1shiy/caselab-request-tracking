@@ -4,7 +4,9 @@ import { REQUEST_PRIORITIES, REQUEST_STATUSES } from '../domain/request.js';
 import {
   emptyAsUndefined,
   idParamsSchema,
+  boundOffset,
   limitSchema,
+  offsetSchema,
   optionalDateFilter,
   pageSchema,
   requestPriorityFilterSchema,
@@ -54,7 +56,9 @@ export const requestListQuerySchema = z
     sort: sortSchema(REQUEST_SORT_FIELDS),
     page: pageSchema,
     limit: limitSchema,
+    offset: offsetSchema,
   })
+  .superRefine(boundOffset)
   .refine(
     (value) => value.dateFrom === undefined || value.dateTo === undefined || value.dateFrom <= value.dateTo,
     { message: 'dateFrom не может быть позже dateTo', path: ['dateFrom'] },
