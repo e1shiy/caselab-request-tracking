@@ -1,0 +1,16 @@
+apiVersion: 1
+
+providers:
+  - name: caselab
+    orgId: 1
+    folder: CaseLab
+    type: file
+    disableDeletion: false
+    # Файлы читаются при старте и при перезагрузке через UI: дашборд можно
+    # править в Grafana, не теряя изменения в репозитории до следующего
+    # коммита.
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

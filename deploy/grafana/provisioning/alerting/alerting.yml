@@ -1,0 +1,176 @@
+apiVersion: 1
+
+# Правила Grafana (unified alerting). Те же условия продублированы в
+# deploy/prometheus/alerts.yml: Prometheus считает их локально и не зависит от
+# Grafana, а здесь они видны в интерфейсе с историей и без настроенного
+# Alertmanager.
+groups:
+  - orgId: 1
+    name: Service availability
+    folder: CaseLab
+    interval: 1m
+    rules:
+      - uid: caselab-service-down
+        title: Приложение не отвечает
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: up{job="app"}
+              instant: true
+              intervalMs: 15000
+              legendFormat: "app"
+              maxDataPoints: 20000
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "Prometheus не может получить метрики приложения (up == 0)"
+          runbook_url: "https://github.com/local/caselab-request-tracking/blob/main/README.md#мониторинг"
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: caselab-database-unavailable
+        title: Приложение не видит базу
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: app_database_up
+              instant: true
+              intervalMs: 15000
+              legendFormat: "app"
+              maxDataPoints: 20000
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "/api/health/ready отдаёт 503: база недоступна (app_database_up == 0)"
+        labels:
+          severity: critical
+        isPaused: false
+
+      - uid: caselab-slow-requests
+        title: p95 времени ответа выше 1 секунды
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              # instant: обязателен: условие C ждёт одно значение, а не
+              # временной ряд, иначе Grafana пишет «only reduced data can be
+              # alerted on» и правило висит в health=error.
+              expr: >-
+                histogram_quantile(0.95,
+                  sum by (le) (rate(http_request_duration_seconds_bucket{job="app"}[5m])))
+              instant: true
+              intervalMs: 15000
+              legendFormat: "p95"
+              maxDataPoints: 20000
+              range: false
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [C]
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: NoData
+        execErrState: Error
+        for: 10m
+        annotations:
+          summary: "Медленные ответы дольше 10 минут: проверьте погодный сервис и базу"
+        labels:
+          severity: warning
+        isPaused: false
