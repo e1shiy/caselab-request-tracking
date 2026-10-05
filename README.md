@@ -924,6 +924,62 @@ GET /api/equipment/:id/weather
 делает `JOIN` с площадками. Если погодный API недоступен, сервис не падает и
 отвечает **502** `EXTERNAL_API_ERROR`.
 
+## Запуск в Docker
+
+Локально без Docker сервис поднимается как раньше (см. «Быстрый старт»), но
+полный стек собирается в контейнерах: там же проверяется то, как он будет
+работать на сервере.
+
+```bash
+cp .env.example .env      # заполнить DB_*, JWT_SECRET, JWT_REFRESH_SECRET
+openssl rand -hex 32      # значения для JWT_SECRET и JWT_REFRESH_SECRET
+npm run docker:up         # docker compose up -d --build
+docker compose ps
+```
+
+Три сервиса, порядок запуска задан зависимостями, а не документацией:
+
+1. **db** — PostgreSQL 18 с `pg_isready`-healthcheck и ролью `app_rw`,
+   создаваемой скриптом `db/init`. Данные живут в именованном томе `pgdata`.
+2. **migrate** — разовый контейнер: `npm run db:migrate`, затем
+   `npm run db:seed` из уже собранного образа. Он же владеет правом менять
+   схему, потому что запускается от `DB_MIGRATION_USER`.
+3. **app** — само приложение от роли `DB_USER`, у которой нет прав на DDL.
+   Стартует только после `service_completed_successfully` у `migrate`,
+   поэтому первый запрос не увидит пустую схему.
+
+```bash
+npm run docker:logs       # логи приложения
+npm run docker:ps         # статусы
+npm run docker:down       # остановить, данные и том останутся
+npm run docker:reset      # остановить и удалить том (данные пропадут)
+```
+
+Решения, которые видно в `Dockerfile` и `compose.yaml`:
+
+- **Node 24 bookworm-slim, а не alpine**: `bcrypt` — нативный модуль, под
+  alpine нужен тулчейн для сборки, здесь подходит готовый бинарник.
+- **Три стадии**: `build` ставит всё и компилирует TypeScript, `prod-deps`
+  делает `npm prune --omit=dev`, `runtime` получает только `dist`,
+  production-зависимости и `db/init`. TypeScript и tsx в образ не идут.
+- **Непривилегированный пользователь**: `USER node`, поэтому запись в файлы
+  приложения невозможна даже при ошибке в коде.
+- **`CMD`, а не `ENTRYPOINT`**: `compose` переопределяет `command` у сервиса
+  миграций, а `ENTRYPOINT` его перебил бы и запустил вместо миграций сервер.
+  При этом `node` остаётся PID 1 и получает `SIGTERM` напрямую, поэтому
+  graceful shutdown работает (в логах видно `"msg":"shutting down"`).
+- **Healthcheck приложения** бьёт в `/api/health/ready`, а не в `/live`:
+  балансировщик не должен слать трафик в контейнер без базы.
+- **Обязательные переменные** помечены как `${JWT_SECRET:?...}`: если забыть
+  секрет, `compose` падает сразу с понятным сообщением, а не контейнер
+  стартует и падает уже в цикле перезапуска.
+
+Проверено на этой машине: `docker compose up -d --build` поднимает стек с
+нуля, `migrate` применяет 11 миграций и грузит демо-данные, `app` становится
+`healthy`, повторный `up` идемпотентен («демо-данные уже были загружены»),
+данные переживают `docker compose down` без `-v`, а роль приложения не может
+создать таблицу (`permission denied`).
+
 ## Безопасность
 
 - **CORS.** Разрешены только источники из `CORS_ORIGINS` (список через запятую),
@@ -1141,7 +1197,9 @@ src/
                            # metrics (реестр prom-client и сбор значений)
 db/init/                   # создание роли app_rw при инициализации кластера
 docs/postman/              # коллекция Postman
-compose.yaml               # PostgreSQL 18 + volume pgdata + healthcheck
+Dockerfile                 # multi-stage сборка: build → prod-deps → runtime (node:24)
+.dockerignore              # в образ не попадают .env, node_modules и dist с хоста
+compose.yaml               # db, migrate (one-shot), app; nginx и мониторинг — ниже
 ```
 
 `sync({ force: true })` не используется нигде: схема меняется только

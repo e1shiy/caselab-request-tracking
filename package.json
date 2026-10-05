@@ -19,7 +19,12 @@
     "db:reset": "tsx src/db/cli/migrate.ts reset",
     "db:rollback-demo": "tsx src/db/cli/rollback-demo.ts",
     "db:verify": "tsx src/db/cli/verify-schema.ts",
-    "docs:check": "tsx scripts/check-openapi-coverage.ts"
+    "docs:check": "tsx scripts/check-openapi-coverage.ts",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v",
+    "docker:logs": "docker compose logs -f app",
+    "docker:ps": "docker compose ps"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
