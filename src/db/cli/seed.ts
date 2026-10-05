@@ -1,6 +1,8 @@
 import { QueryTypes, type Sequelize, type Transaction } from 'sequelize';
 
+import { config } from '../../config.js';
 import { logger } from '../../lib/logger.js';
+import { hashPassword } from '../../lib/password.js';
 import { createSequelize, waitForDatabase } from '../client.js';
 import { initModels } from '../models/index.js';
 
@@ -429,6 +431,41 @@ const HISTORY: Record<string, unknown>[] = [
   { id: id(81), request_id: id(50), previous_status: 'new', new_status: 'rejected', changed_by: 'Планировщик ТО', comment: 'Работы признаны ненужными', changed_at: '2026-03-05T15:30:00.000Z' },
 ];
 
+// Учётные записи для демо-стенда. Пароли берутся только из переменных
+// окружения: в репозитории их нет, а хеши вычисляются на лету.
+const SEED_USERS = [
+  {
+    id: id(61),
+    email: config.BOOTSTRAP_ADMIN_EMAIL,
+    password: config.BOOTSTRAP_ADMIN_PASSWORD,
+    full_name: 'Администратор системы',
+    role: 'admin',
+    technician_id: null,
+    is_active: true,
+    token_version: 1,
+  },
+  {
+    id: id(62),
+    email: config.SEED_TECHNICIAN_EMAIL,
+    password: config.SEED_TECHNICIAN_PASSWORD,
+    full_name: 'Иванов Иван Иванович',
+    role: 'technician',
+    technician_id: TECHNICIAN_TURBINE,
+    is_active: true,
+    token_version: 1,
+  },
+  {
+    id: id(63),
+    email: config.SEED_VIEWER_EMAIL,
+    password: config.SEED_VIEWER_PASSWORD,
+    full_name: 'Наблюдатель',
+    role: 'viewer',
+    technician_id: null,
+    is_active: true,
+    token_version: 1,
+  },
+];
+
 const ASSIGNEES = [
   { request_id: id(31), technician_id: TECHNICIAN_TURBINE, role: 'lead', planned_hours: 8 },
   { request_id: id(31), technician_id: TECHNICIAN_SENSOR, role: 'member', planned_hours: 6 },
@@ -479,6 +516,41 @@ async function insertIgnore(
   return inserted.length;
 }
 
+async function seedUsers(sequelize: Sequelize, transaction: Transaction): Promise<number> {
+  const rows = SEED_USERS.filter((user) => user.password !== '');
+  const skipped = SEED_USERS.length - rows.length;
+  if (skipped > 0) {
+    logger.warn({ skipped }, 'часть демо-пользователей пропущена: не задан пароль в переменной окружения');
+  }
+  if (rows.length === 0) return 0;
+
+  const queryInterface = sequelize.getQueryInterface();
+  let inserted = 0;
+
+  for (const row of rows) {
+    const { password, ...rest } = row;
+    const sql = `INSERT INTO ${queryInterface.quoteIdentifier('users')} (email, password_hash, full_name, role, technician_id, is_active, token_version) VALUES (:email, :passwordHash, :fullName, :role, :technicianId, :isActive, :tokenVersion) ON CONFLICT ON CONSTRAINT users_email_key DO NOTHING RETURNING id;`;
+
+    const result = await sequelize.query<Record<string, unknown>>(sql, {
+      replacements: {
+        email: rest.email,
+        passwordHash: await hashPassword(password),
+        fullName: rest.full_name,
+        role: rest.role,
+        technicianId: rest.technician_id,
+        isActive: rest.is_active,
+        tokenVersion: rest.token_version,
+      },
+      type: QueryTypes.SELECT,
+      transaction,
+    });
+
+    inserted += result.length;
+  }
+
+  return inserted;
+}
+
 export async function seedDatabase(sequelize: Sequelize): Promise<void> {
   const summary = await sequelize.transaction(async (transaction) => ({
     sites: await insertIgnore(sequelize, 'sites', SITES, 'ON CONSTRAINT sites_code_key', transaction),
@@ -492,6 +564,13 @@ export async function seedDatabase(sequelize: Sequelize): Promise<void> {
 
   const added = Object.values(summary).reduce((sum, count) => sum + count, 0);
   logger.info({ ...summary, added }, added > 0 ? 'демо-данные загружены' : 'демо-данные уже были загружены');
+
+  // Пользователи идут после справочников: у техника есть внешний ключ
+  // на technicians, поэтому специалисты должны существовать раньше.
+  if (config.SEED_USERS) {
+    const users = await sequelize.transaction((transaction) => seedUsers(sequelize, transaction));
+    logger.info({ users }, users > 0 ? 'демо-пользователи загружены' : 'демо-пользователи уже были загружены');
+  }
 }
 
 async function main(): Promise<void> {

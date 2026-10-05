@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import type { MaintenanceRequest, RequestStatus } from '../domain/request.js';
 import type { RequestStatusHistoryEntry } from '../domain/status-history.js';
+import type { AuthUser } from '../domain/user.js';
 import { ConflictError, NotFoundError } from '../errors.js';
 import type { EquipmentRepository, RequestRepository } from '../repositories/index.js';
 import type { Transaction, TransactionRunner } from '../repositories/common.js';
@@ -12,6 +13,7 @@ import type {
   RequestStatusBody,
   RequestUpdateInput,
 } from '../schemas/request.js';
+import { assertCanEditRequest } from './access-control.js';
 
 export interface RequestListResult {
   data: MaintenanceRequest[];
@@ -66,23 +68,27 @@ export class RequestService {
     return { data: await this.requestRepo.listHistory(id) };
   }
 
-  async create(input: RequestCreateInput): Promise<MaintenanceRequest> {
+  async create(input: RequestCreateInput, actor: AuthUser): Promise<MaintenanceRequest> {
     const equipment = await this.equipmentRepo.findById(input.equipmentId);
     if (!equipment) throw new NotFoundError('Оборудование не найдено');
 
-    const author = input.author ?? config.DEFAULT_AUTHOR;
-    return this.runInTransaction((transaction) => this.requestRepo.create(input, author, transaction));
+    return this.runInTransaction((transaction) => this.requestRepo.create(input, actor.fullName, transaction));
   }
 
-  async update(id: string, input: RequestUpdateInput): Promise<MaintenanceRequest> {
+  async update(id: string, input: RequestUpdateInput, actor: AuthUser): Promise<MaintenanceRequest> {
+    await this.assertEditable(id, actor);
+
     const updated = await this.requestRepo.update(id, input);
     if (!updated) throw new NotFoundError('Заявка не найдена');
     return updated;
   }
 
-  async changeStatus(id: string, body: RequestStatusBody): Promise<RequestCard> {
+  async changeStatus(id: string, body: RequestStatusBody, actor: AuthUser): Promise<RequestCard> {
     return this.runInTransaction(async (transaction) => {
       const request = await this.lockRequest(id, transaction);
+      const card = await this.requireCard(id, transaction);
+
+      assertCanEditRequest(actor, card.assignees);
 
       if (request.status === body.status) {
         throw new ConflictError(`Заявка уже находится в статусе «${body.status}»`);
@@ -109,7 +115,7 @@ export class RequestService {
         {
           expectedStatus: request.status,
           status: body.status,
-          changedBy: body.changedBy ?? config.DEFAULT_AUTHOR,
+          changedBy: actor.fullName,
           ...(body.comment !== undefined ? { comment: body.comment } : {}),
         },
         transaction,
@@ -123,9 +129,13 @@ export class RequestService {
     });
   }
 
-  async assignCrew(id: string, body: RequestAssigneesBody): Promise<RequestCard> {
+  async assignCrew(id: string, body: RequestAssigneesBody, actor: AuthUser): Promise<RequestCard> {
     return this.runInTransaction(async (transaction) => {
       const request = await this.lockRequest(id, transaction);
+      const card = await this.requireCard(id, transaction);
+
+      assertCanEditRequest(actor, card.assignees);
+
       if (CLOSED_STATUSES.includes(request.status)) {
         throw new ConflictError(`Бригаду нельзя изменить у заявки в статусе «${request.status}»`);
       }
@@ -137,14 +147,18 @@ export class RequestService {
     });
   }
 
-  async removeAssignee(id: string, technicianId: string): Promise<RequestCard> {
+  async removeAssignee(id: string, technicianId: string, actor: AuthUser): Promise<RequestCard> {
     return this.runInTransaction(async (transaction) => {
       const request = await this.lockRequest(id, transaction);
+      const card = await this.requireCard(id, transaction);
+
+      assertCanEditRequest(actor, card.assignees);
+
       if (CLOSED_STATUSES.includes(request.status)) {
         throw new ConflictError(`Бригаду нельзя изменить у заявки в статусе «${request.status}»`);
       }
 
-      const crew = await this.requestRepo.listAssignees(id, transaction);
+      const crew = card.assignees;
       const target = crew.find((assignee) => assignee.technicianId === technicianId);
       if (!target) throw new NotFoundError('Специалист не назначен на заявку');
 
@@ -163,6 +177,10 @@ export class RequestService {
   async delete(id: string): Promise<void> {
     const request = await this.getById(id);
     await this.requestRepo.remove(request.id);
+  }
+
+  private async assertEditable(id: string, actor: AuthUser): Promise<void> {
+    assertCanEditRequest(actor, (await this.requireCard(id)).assignees);
   }
 
   private async lockRequest(id: string, transaction: Transaction): Promise<MaintenanceRequest> {

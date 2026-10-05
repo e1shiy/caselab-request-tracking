@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { EquipmentController } from '../controllers/equipment-controller.js';
 import type { RequestController } from '../controllers/request-controller.js';
 import type { WeatherController } from '../controllers/weather-controller.js';
+import { requireRole } from '../middleware/require-role.js';
 import { validate } from '../middleware/validate.js';
 import type { Storage } from '../repositories/index.js';
 import { PAGINATION_FIELDS, idParamsSchema } from '../schemas/common.js';
@@ -12,6 +13,7 @@ import {
   equipmentUpdateSchema,
 } from '../schemas/equipment.js';
 import { requestListQuerySchema } from '../schemas/request.js';
+import { EQUIPMENT_MANAGE_ROLES } from '../services/access-control.js';
 import { EquipmentService } from '../services/equipment-service.js';
 
 export function createEquipmentRouter(
@@ -29,7 +31,7 @@ export function createEquipmentRouter(
     validate({ query: equipmentListQuerySchema }, { rangeFields: PAGINATION_FIELDS }),
     controller.list,
   );
-  router.post('/', validate({ body: equipmentCreateSchema }), controller.create);
+  router.post('/', requireRole(...EQUIPMENT_MANAGE_ROLES), validate({ body: equipmentCreateSchema }), controller.create);
   router.get(
     '/:id/requests',
     validate(
@@ -40,8 +42,13 @@ export function createEquipmentRouter(
   );
   router.get('/:id/weather', validate({ params: idParamsSchema }), weatherController.getForecast);
   router.get('/:id', validate({ params: idParamsSchema }), controller.getById);
-  router.patch('/:id', validate({ params: idParamsSchema, body: equipmentUpdateSchema }), controller.update);
-  router.delete('/:id', validate({ params: idParamsSchema }), controller.remove);
+  router.patch(
+    '/:id',
+    requireRole(...EQUIPMENT_MANAGE_ROLES),
+    validate({ params: idParamsSchema, body: equipmentUpdateSchema }),
+    controller.update,
+  );
+  router.delete('/:id', requireRole(...EQUIPMENT_MANAGE_ROLES), validate({ params: idParamsSchema }), controller.remove);
 
   return router;
 }

@@ -25,12 +25,6 @@ export const requestCreateSchema = z.object({
   description: z.string().trim().max(2000, 'Описание не более 2000 символов').optional(),
   priority: z.enum(REQUEST_PRIORITIES, { message: 'Недопустимый приоритет' }).default('medium'),
   plannedAt: z.iso.datetime({ message: 'Дата планирования должна быть в формате ISO-8601' }).optional(),
-  author: z
-    .string()
-    .trim()
-    .min(2, 'Автор должен содержать не менее 2 символов')
-    .max(120, 'Автор не более 120 символов')
-    .optional(),
 });
 
 export const requestUpdateSchema = z
@@ -50,7 +44,6 @@ export const requestUpdateSchema = z
 export const requestStatusSchema = z.object({
   status: z.enum(REQUEST_STATUSES, { message: 'Недопустимый статус' }),
   comment: z.string().trim().max(500, 'Комментарий не более 500 символов').optional(),
-  changedBy: z.string().trim().min(2, 'Имя должно содержать не менее 2 символов').max(120).optional(),
 });
 
 const requestAssigneeItemSchema = z.object({
