@@ -29,7 +29,8 @@
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit",
     "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration",
     "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
+    "test:e2e": "npx --yes newman run docs/postman/caselab-requests.postman_collection.json --env-var baseUrl=http://localhost:8080"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
