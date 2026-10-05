@@ -57,3 +57,15 @@ export class RateLimitError extends AppError {
     super('Слишком много запросов, повторите позже', { ...options, status: 429, code: 'RATE_LIMIT_EXCEEDED' });
   }
 }
+
+export class UnauthorizedError extends AppError {
+  constructor(message = 'Требуется аутентификация', options: Omit<AppErrorOptions, 'status' | 'code'> = {}) {
+    super(message, { ...options, status: 401, code: 'UNAUTHORIZED' });
+  }
+}
+
+export class ForbiddenError extends AppError {
+  constructor(message = 'Недостаточно прав', options: Omit<AppErrorOptions, 'status' | 'code'> = {}) {
+    super(message, { ...options, status: 403, code: 'FORBIDDEN' });
+  }
+}
