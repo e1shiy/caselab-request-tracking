@@ -8,10 +8,13 @@ import { config } from './config.js';
 import { NotFoundError } from './errors.js';
 import { contextMiddleware } from './lib/context.js';
 import { httpLogger } from './lib/http-logger.js';
+import { metricsContentType, renderMetrics } from './lib/metrics.js';
 import { errorHandler } from './middleware/error-handler.js';
+import { httpMetrics } from './middleware/metrics.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import type { Storage } from './repositories/index.js';
 import { createApiRouter } from './routes/api.js';
+import { createHealthRouter } from './routes/health.js';
 
 export function createApp(storage: Storage): Express {
   const app = express();
@@ -22,6 +25,7 @@ export function createApp(storage: Storage): Express {
 
   app.use(httpLogger);
   app.use(contextMiddleware);
+  app.use(httpMetrics());
 
   app.use(helmet());
   app.use(
@@ -38,6 +42,17 @@ export function createApp(storage: Storage): Express {
   app.use(express.json({ limit: config.BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: config.BODY_LIMIT }));
 
+  // Метрики отдаются без токена и вне лимита частоты: их собирает система
+  // мониторинга, а не пользователь. Доступ снаружи закрывает nginx.
+  app.get('/metrics', (_req, res, next) => {
+    renderMetrics()
+      .then((body) => {
+        res.set('Content-Type', metricsContentType()).send(body);
+      })
+      .catch(next);
+  });
+
+  app.use('/api/health', createHealthRouter(storage));
   app.use('/api', createApiRouter(storage));
 
   app.use((req: Request, _res: Response, next) => next(new NotFoundError('Эндпоинт не найден')));

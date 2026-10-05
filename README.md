@@ -475,7 +475,10 @@ ERROR:  request_status_history is append-only: UPDATE is forbidden
 
 | Метод | Путь | Назначение | Коды |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | Проверка доступности, без аутентификации | 200 |
+| `GET` | `/api/health` | Совместимость: признак работы процесса, без аутентификации | 200 |
+| `GET` | `/api/health/live` | Liveness: процесс отвечает, без обращения к БД | 200 |
+| `GET` | `/api/health/ready` | Readiness: проверка соединения с PostgreSQL | 200, 503 |
+| `GET` | `/metrics` | Метрики Prometheus, без аутентификации | 200 |
 | `POST` | `/api/auth/register` | Регистрация; роль всегда `viewer` | 201, 422 |
 | `POST` | `/api/auth/login` | Вход, выдача access-токена и refresh-cookie | 200, 401, 422, 429 |
 | `POST` | `/api/auth/refresh` | Ротация refresh-токена по cookie | 200, 401 |
@@ -504,8 +507,11 @@ ERROR:  request_status_history is append-only: UPDATE is forbidden
 > Одиночные ресурсы возвращаются объектом напрямую. При 201 выдаётся
 > заголовок `Location`.
 
-Кроме `/api/health` и `/api/auth/*` все эндпоинты требуют заголовок
-`Authorization: Bearer <accessToken>`; без него — **401**.
+Кроме `/api/health*`, `/api/auth/*` и `/metrics` все эндпоинты требуют
+заголовок `Authorization: Bearer <accessToken>`; без него — **401**.
+Health-эндпоинты и `/metrics` не требуют токена: их вызывает балансировщик и
+система мониторинга, а не пользователь. Доступ извне закрывает nginx
+(см. «DevOps»).
 
 ### Роли и права
 
@@ -987,10 +993,60 @@ https://github.com/advisories/GHSA-w5hq-g745-h8pq
  Sequelize (`npm audit fix --force` предлагает откат на `sequelize@3.30.0`),
 поэтому пакет зафиксирован на текущей версии и риск принят осознанно.
 
+## Health-check и метрики
+
+### `/api/health/live` и `/api/health/ready`
+
+- `/live` отвечает `200` всегда, пока процесс работает, и **не обращается к
+  базе**: перезапуск контейнера при потере связи с PostgreSQL ничего не
+  даёт. Ответ: `{ status, uptimeSeconds, timestamp }`.
+- `/ready` выполняет `SELECT 1` и отвечает `200`
+  `{ status: 'ready', database: 'up', uptimeSeconds, timestamp }`. Если база
+  недоступна — **503** в едином формате ошибки с кодом `SERVICE_UNAVAILABLE`
+  и сообщением «База данных недоступна»; детали соединения наружу не
+  выходят. Именно этот эндпоинт используется в `healthcheck` контейнера и в
+  проверке готовности балансировщика.
+- `/api/health` оставлен для совместимости и отвечает `200 {"status":"ok"}`
+  без проверки базы.
+- Оба эндпоинта не требуют токена и не попадают в access-лог (проверки идут
+  каждые несколько секунд). Недоступность базы фиксируется отдельным
+  `warn`-сообщением `database health check failed`.
+
+### `/metrics`
+
+Экспорт в текстовом формате Prometheus (`text/plain; version=0.0.4`) без
+аутентификации и без лимита частоты: эндпоинт находится вне `/api`, сборщик
+метрик не должен попадать под `RATE_LIMIT_MAX`. Снаружи доступ закрывает
+nginx.
+
+| Метрика | Тип | Описание |
+| --- | --- | --- |
+| `http_requests_total{method,route,status}` | counter | Количество ответов по маршруту и коду |
+| `http_request_duration_seconds{method,route,status}` | histogram | Длительность ответа, бакеты от 5 мс до 30 с |
+| `http_requests_in_flight` | gauge | Запросы, обрабатываемые прямо сейчас |
+| `app_database_up` | gauge | `1`, если последняя проверка `/ready` успешна, иначе `0` |
+| `app_process_*`, `app_nodejs_*` | gauge / counter | Стандартные метрики процесса и event loop с префиксом `app_` |
+
+Метка `route` строится нормализацией пути: UUID и числовые идентификаторы
+сводятся к `:id`, сегменты глубже шести и пути вне `/api` и `/metrics`
+превращаются в `unmatched`. Без этого количество временных рядов росло бы
+вместе с числом заявок. Шаблон роутера (`req.route`) не используется: к моменту,
+когда error handler пишет ответ, `req.baseUrl` уже сброшен и путь вышел бы
+неполным.
+
+Пример:
+
+```bash
+curl -s localhost:3000/metrics | grep '^http_requests_total'
+# http_requests_total{method="GET",route="/api/requests",status="200"} 12
+# http_requests_total{method="GET",route="/api/requests/:id",status="404"} 1
+```
+
 ## Логирование
 
 - Каждый запрос логируется (pino-http): метод, путь, статус, `responseTime`,
-  `X-Request-Id`. `/api/health` игнорируется.
+  `X-Request-Id`. `/api/health*` и `/metrics` игнорируются, чтобы проверки
+  готовности и сбор метрик не засоряли access-лог.
 - Ошибки логируются на `error`/`warn` с `requestId`, который возвращается
   клиенту. Пишутся и предупреждения о неудачных попытках подключения к БД при
   старте.
@@ -1036,10 +1092,11 @@ src/
     auth-service.ts        # регистрация, вход, ротация и отзыв refresh-токенов
     access-control.ts      # правила ролей и назначения, чистые функции
   controllers/             # тонкие обработчики HTTP (включая auth-controller)
-  routes/                  # api/auth/equipment/requests/sites/reports
+  routes/                  # api/health/auth/equipment/requests/sites/reports
+                           # health.ts смонтирован вне authenticate()
   schemas/                 # zod-схемы body/query/params (включая auth)
   middleware/              # validate, error-handler, rate-limit,
-                           # authenticate, require-role
+                           # authenticate, require-role, metrics
   db/
     client.ts              # Sequelize (роль app/migration), waitForDatabase
     migrator.ts            # umzug
@@ -1047,7 +1104,8 @@ src/
     migrations/            # 11 миграций up/down
     cli/                   # migrate, seed, verify-schema, rollback-demo
   lib/                     # logger, http-logger, context (AsyncLocalStorage),
-                           # password (bcrypt), token-service (JWT), refresh-cookie
+                           # password (bcrypt), token-service (JWT), refresh-cookie,
+                           # metrics (реестр prom-client и сбор значений)
 db/init/                   # создание роли app_rw при инициализации кластера
 docs/postman/              # коллекция Postman
 compose.yaml               # PostgreSQL 18 + volume pgdata + healthcheck
@@ -1065,18 +1123,21 @@ compose.yaml               # PostgreSQL 18 + volume pgdata + healthcheck
 | --- | --- | --- |
 | 1 | `httpLogger` (pino-http) | Первым, чтобы логировался **любой** запрос, даже упавший дальше. Здесь присваивается `X-Request-Id` |
 | 2 | `contextMiddleware` | Перехватывает `req.id` и `req.log` в `AsyncLocalStorage`, после чего `getLog()` доступен в сервисах без передачи логгера по сигнатурам |
-| 3 | `helmet` | До всего, что способен сформировать ответ, чтобы защитные заголовки получили и ответы с ошибкой |
-| 4 | `cors` | До маршрутов и **до** rate limiting: preflight-OPTIONS должен отвечаться, не расходуя квоту частоты |
-| 5 | `rateLimiter` на `/api` | До разбора тела и работы маршрутов |
-| 6 | `cookieParser` | До маршрутов: `/auth/refresh` и `/auth/logout` читают refresh-cookie |
-| 7 | `express.json` с лимитом размера | После rate limiting, но до маршрутов: превышение `BODY_LIMIT` должно давать 413 до валидации полей |
-| 8 | `express.urlencoded` | Там же по той же причине |
-| 9 | `createApiRouter` | Маршруты; `validate()` стоит **до** контроллера, поэтому контроллеры работают только с проверенными данными из `req.valid` |
-| 10 | Обработчик 404 | После всех маршрутов: единый формат ошибки |
-| 11 | `errorHandler` | Последним, чтобы через него проходили ошибки всех шагов и обработчиков |
+| 3 | `httpMetrics` | Считает длительность и код ответа каждого запроса; вешается на `finish`, поэтому ловит и 4xx, и 5xx независимо от того, кто сформировал ответ |
+| 4 | `helmet` | До всего, что способен сформировать ответ, чтобы защитные заголовки получили и ответы с ошибкой |
+| 5 | `cors` | До маршрутов и **до** rate limiting: preflight-OPTIONS должен отвечаться, не расходуя квоту частоты |
+| 6 | `rateLimiter` на `/api` | До разбора тела и работы маршрутов |
+| 7 | `cookieParser` | До маршрутов: `/auth/refresh` и `/auth/logout` читают refresh-cookie |
+| 8 | `express.json` с лимитом размера | После rate limiting, но до маршрутов: превышение `BODY_LIMIT` должно давать 413 до валидации полей |
+| 9 | `express.urlencoded` | Там же по той же причине |
+| 10 | `GET /metrics` | Вне `/api`: без токена и без лимита частоты, иначе сборщик метрик упирался бы в `RATE_LIMIT_MAX` |
+| 11 | `createHealthRouter` на `/api/health` | Тоже вне `createApiRouter`, чтобы `/live` и `/ready` не попадали под `authenticate()` |
+| 12 | `createApiRouter` | Маршруты; `validate()` стоит **до** контроллера, поэтому контроллеры работают только с проверенными данными из `req.valid` |
+| 13 | Обработчик 404 | После всех маршрутов: единый формат ошибки |
+| 14 | `errorHandler` | Последним, чтобы через него проходили ошибки всех шагов и обработчиков |
 
-Внутри `createApiRouter` порядок такой: `/health` открыт, `/auth` подключается
-**до** `authenticate()` (иначе зарегистрироваться было бы невозможно), а
+Внутри `createApiRouter` порядок такой: `/auth` подключается **до**
+`authenticate()` (иначе зарегистрироваться было бы невозможно), а
 `authenticate()` закрывает весь остальной префикс. Роль проверяется
 `requireRole()` в конкретных маршрутах, а принадлежность заявки — в сервисе
 (`assertCanEditRequest`), потому что это зависит от данных, а не от заголовка.
@@ -1096,8 +1157,9 @@ Sequelize освобождается, соединения не висят). П�
 ## Тестирование в Postman
 
 Коллекция в `docs/postman/caselab-requests.postman_collection.json`
-(59 test-скриптов, 14 pre-request-скриптов, 100 запросов и 117 проверок на
-прогон). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
+(63 test-скрипта, 14 pre-request-скриптов, 301 запрос — из них 63 из коллекции
+и 238 из вспомогательных вызовов и сценария 429 — и 121 проверка на прогон,
+0 ошибок). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
 который получает первый запрос группы **Auth**.
 
 ```bash
@@ -1126,13 +1188,24 @@ npx newman run docs/postman/caselab-requests.postman_collection.json
    оборудованию. Фикстуры серийных номеров фиксированы, поэтому полный прогон
    выполняйте на чистой базе: иначе создание оборудования вернёт 409 по
    дубликату.
-5. Сценарий 429 (последний в коллекции) расходует квоту частоты, поэтому
+5. Группа «Система» идёт первой: `/api/health`, `/api/health/live`,
+   `/api/health/ready` и `/metrics` проверяются без токена.
+6. Сценарий 429 (последний в коллекции) расходует квоту частоты, поэтому
    коллекцию нельзя прогонять дважды подряд без перезапуска сервера. Он
    перебирает запросы до первого 429; если на сервере задан другой
    `RATE_LIMIT_MAX`, поправьте переменную коллекции `rateLimitMax`.
-   Значение по умолчанию поднято со 100 до 300 запросов в минуту: при 100
-   полный прогон коллекции исчерпывал квоту на середине, и результат зависел
-   от порядка запросов.
+   Значение по умолчанию поднято с 100 до **300** запросов в минуту: при
+   100 полный прогон коллекции успевал исчерпать квоту на середине, и
+   результат зависел от порядка запросов.
+
+Добавлено при внедрении health-check и метрик:
+
+- группа **Система (health и метрики)** из 4 запросов: `/api/health`,
+  `/api/health/live`, `/api/health/ready` (ожидается 200 и `database=up`) и
+  `/metrics` (ожидается 200, наличие `http_requests_total` и
+  `app_database_up` в теле ответа);
+- лимит частоты поднят до 300 запросов в минуту, переменная коллекции
+  `rateLimitMax` синхронизирована с новым значением по умолчанию.
 
 Добавлено при внедрении аутентификации:
 

@@ -21,6 +21,8 @@ export interface Storage {
   sites: SiteRepository;
   users: UserRepository;
   transaction: TransactionRunner;
+  /** Проверка живости соединения с PostgreSQL для /api/health/ready. */
+  health(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -40,6 +42,9 @@ export async function createStorage(): Promise<Storage> {
     sites: new PostgresSiteRepository(sequelize),
     users: new PostgresUserRepository(),
     transaction: runInTransaction,
+    health: async () => {
+      await sequelize.query('SELECT 1');
+    },
     close: () => sequelize.close(),
   };
 }
