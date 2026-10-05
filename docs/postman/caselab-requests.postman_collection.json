@@ -107,7 +107,7 @@
           ]
         },
         {
-          "name": "Метрики Prometheus (ожидаем 200)",
+          "name": "Метрики Prometheus снаружи (через прокси ожидаем 404)",
           "request": {
             "method": "GET",
             "header": [],
@@ -127,10 +127,17 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('экспорт метрик в формате Prometheus', () => {",
-                  "  pm.response.to.have.status(200);",
-                  "  pm.expect(pm.response.text()).to.include('http_requests_total');",
-                  "  pm.expect(pm.response.text()).to.include('app_database_up');",
+                  "pm.test('метрики: содержимое при прямом доступе, 404 за прокси', () => {",
+                  "  if (pm.response.code === 200) {",
+                  "    // Приложение запущено напрямую (npm run dev) — проверяем формат.",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/plain');",
+                  "    pm.expect(pm.response.text()).to.include('app_database_up 1');",
+                  "    pm.expect(pm.response.text()).to.include('http_requests_total');",
+                  "    pm.expect(pm.response.text()).to.include('http_request_duration_seconds_bucket');",
+                  "    return;",
+                  "  }",
+                  "  // За nginx метрики закрыты — это ожидаемое поведение.",
+                  "  pm.expect(pm.response.code).to.eql(404);",
                   "});"
                 ]
               }

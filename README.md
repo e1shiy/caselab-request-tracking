@@ -924,6 +924,55 @@ GET /api/equipment/:id/weather
 делает `JOIN` с площадками. Если погодный API недоступен, сервис не падает и
 отвечает **502** `EXTERNAL_API_ERROR`.
 
+## Прокси nginx
+
+Публичная точка входа — контейнер nginx. Наружу открыт только порт 80
+(в compose пробрасывается как `8080`): приложение и база слушают внутреннюю
+сеть и портов на хосте не имеют, проверить это можно так:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 3 http://localhost:3000/api/health/live  # 000 — соединения нет
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/api/health/ready              # 200
+```
+
+`deploy/nginx/conf.d/app.conf` решает четыре задачи:
+
+| Что | Как | Зачем |
+| --- | --- | --- |
+| Заголовки доверия | `Host`, `X-Real-IP`, `X-Forwarded-For`, `X-Forwarded-Proto` | Приложение доверяет одному прокси (`TRUST_PROXY_HOPS=1`) и берёт из этих заголовков реальный IP клиента: от него зависят лимиты частоты и запись `ip` при входе |
+| Идентификатор запроса | `X-Request-Id: $request_id` | Приложение принимает готовый id и возвращает его клиенту, поэтому номер из логов nginx совпадает с номером в логах приложения и в ответе клиенту |
+| Лимиты и таймауты | `client_max_body_size 1m`, `client_body_timeout`, `proxy_connect_timeout`, `proxy_read_timeout`, `proxy_send_timeout` | Тело ограничивается до того, как его примет приложение, а зависший бэкенд не держит соединение с клиентом |
+| Закрытые маршруты | `location = /metrics` → 404, `/healthz` → 200, `/` → статическая страница | Метрики показывают пути, статусы и внутренние id; наружу их не пускают, а Prometheus забирает изнутри сети |
+
+Ещё несколько решений, которые видно в конфигурации:
+
+- `proxy_set_header Connection ""` вместе с `keepalive 32` в `upstream`:
+  соединение к бэкенду переиспользуется, но nginx ждёт не больше
+  `proxy_read_timeout` — при рестарте приложения клиенты не зависают на
+  минуту.
+- `proxy_buffering off`: ответы API маленькие, буферизация только задерживала
+  бы первую строку JSON.
+- Заголовки безопасности не дублируются: их ставит Helmet внутри
+  приложения, `proxy_hide_header Server` убирает только технический
+  `Server: nginx`.
+- gzip включён для текстовых типов (`application/json`, `text/css`,
+  `text/javascript`, …) с `gzip_min_length 1024`; спецификация OpenAPI
+  сжимается с 38 КБ до 7 КБ.
+- Формат логов nginx — JSON с теми же полями, что у pino (`request_id`,
+  `request_time`, `upstream_response_time`), поэтому записи двух слоёв
+  склеиваются по времени.
+- Конфигурация и статика смонтированы `read-only`, а `/var/cache/nginx` и
+  `/var/run` — в `tmpfs`: прокси не может переписать конфиг и не оставляет
+  мусор в слое.
+- Стартовая страница `deploy/nginx/html/index.html` ведёт на Swagger UI и
+  health-check — с неё начинается разбор, когда сервис только подняли.
+
+Проверено: `GET /` 200, `/api/docs/` 200, `/api/docs/openapi.json` 200 с
+`Content-Encoding: gzip`, `/api/health/ready` 200, `/metrics` 404,
+`nginx -t` — конфигурация корректна, `X-Request-Id` в ответе совпадает с
+записью в логах приложения, а полный прогон коллекции через прокси
+(`--env-var baseUrl=http://localhost:8080`) проходит без ошибок.
+
 ## Запуск в Docker
 
 Локально без Docker сервис поднимается как раньше (см. «Быстрый старт»), но
@@ -1199,7 +1248,8 @@ db/init/                   # создание роли app_rw при иници�
 docs/postman/              # коллекция Postman
 Dockerfile                 # multi-stage сборка: build → prod-deps → runtime (node:24)
 .dockerignore              # в образ не попадают .env, node_modules и dist с хоста
-compose.yaml               # db, migrate (one-shot), app; nginx и мониторинг — ниже
+compose.yaml               # db, migrate (one-shot), app, nginx; мониторинг — ниже
+deploy/nginx/              # конфигурация прокси (nginx.conf, conf.d/app.conf, html)
 ```
 
 `sync({ force: true })` не используется нигде: схема меняется только
@@ -1248,9 +1298,9 @@ Sequelize освобождается, соединения не висят). П�
 ## Тестирование в Postman
 
 Коллекция в `docs/postman/caselab-requests.postman_collection.json`
-(65 test-скриптов, 14 pre-request-скриптов, 294 запроса — из них 65 из
-коллекции и 229 из вспомогательных вызовов и сценария 429 — и 123 проверки на
-прогон, 0 ошибок). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
+(65 test-скриптов, 14 pre-request-скриптов, 301 запрос — из них 65 из
+коллекции и 236 из вспомогательных вызовов и сценария 429 — и 123 проверки на
+прогон, 0 ошибок; столько же — прогон через nginx). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
 который получает первый запрос группы **Auth**.
 
 ```bash
@@ -1262,7 +1312,15 @@ npm run build && npm start
 
 # прогон
 npx newman run docs/postman/caselab-requests.postman_collection.json
+
+# тот же прогон через nginx из compose (метрики вернут 404 — это ожидаемо)
+npx newman run docs/postman/caselab-requests.postman_collection.json \
+  --env-var baseUrl=http://localhost:8080
 ```
+
+Полный прогон расходует почти всю квоту частоты, поэтому два запуска подряд
+без перезапуска приложения ломают сценарий 429: перезапустите контейнер
+(`docker compose restart app`) или подождите минуту.
 
 Порядок запуска:
 
@@ -1280,7 +1338,10 @@ npx newman run docs/postman/caselab-requests.postman_collection.json
    выполняйте на чистой базе: иначе создание оборудования вернёт 409 по
    дубликату.
 5. Группа «Система» идёт первой: `/api/health`, `/api/health/live`,
-   `/api/health/ready` и `/metrics` проверяются без токена.
+   `/api/health/ready`, `/metrics`, `/api/docs` и `/api/docs/openapi.json`
+   проверяются без токена. Запрос `/metrics` написан терпимо: напрямую у
+   приложения он отвечает 200 и проверяет формат Prometheus, а за nginx —
+   404, что тоже верно (метрики закрыты прокси).
 6. Сценарий 429 (последний в коллекции) расходует квоту частоты, поэтому
    коллекцию нельзя прогонять дважды подряд без перезапуска сервера. Он
    перебирает запросы до первого 429; если на сервере задан другой
