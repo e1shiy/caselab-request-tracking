@@ -19,7 +19,7 @@ const envSchema = z
           .filter((origin) => origin.length > 0),
       ),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
     LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(300_000),
     LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
     BODY_LIMIT: z.string().default('100kb'),
