@@ -11,12 +11,15 @@ import { PostgresSiteRepository } from './postgres/site-repository.js';
 import type { ReportRepository } from './report-repository.js';
 import type { RequestRepository } from './request-repository.js';
 import type { SiteRepository } from './site-repository.js';
+import type { UserRepository } from './user-repository.js';
+import { PostgresUserRepository } from './postgres/user-repository.js';
 
 export interface Storage {
   equipment: EquipmentRepository;
   requests: RequestRepository;
   reports: ReportRepository;
   sites: SiteRepository;
+  users: UserRepository;
   transaction: TransactionRunner;
   close(): Promise<void>;
 }
@@ -35,6 +38,7 @@ export async function createStorage(): Promise<Storage> {
     requests: new PostgresRequestRepository(),
     reports: new PostgresReportRepository(sequelize),
     sites: new PostgresSiteRepository(sequelize),
+    users: new PostgresUserRepository(),
     transaction: runInTransaction,
     close: () => sequelize.close(),
   };

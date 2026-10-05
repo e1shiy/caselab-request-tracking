@@ -137,7 +137,7 @@ ERROR:  permission denied for schema public
 
 ### Модель данных
 
-Семь таблиц в третьей нормальной форме. Аномалии вставки/обновления/удаления
+Девять таблиц в третьей нормальной форме. Аномалии вставки/обновления/удаления
 устранены: справочники вынесены отдельно, повторяющиеся группы хранятся в
 собственных таблицах, связи many-to-many — через таблицу-связь.
 
@@ -149,6 +149,8 @@ erDiagram
   MAINTENANCE_REQUESTS ||--o{ REQUEST_STATUS_HISTORY : "request_status_history.request_id → maintenance_requests.id, ON DELETE CASCADE"
   MAINTENANCE_REQUESTS ||--o{ REQUEST_ASSIGNEES : "request_assignees.request_id → maintenance_requests.id, ON DELETE CASCADE"
   TECHNICIANS ||--o{ REQUEST_ASSIGNEES : "request_assignees.technician_id → technicians.id, ON DELETE RESTRICT"
+  TECHNICIANS ||--o| USERS : "users.technician_id → technicians.id, ON DELETE SET NULL"
+  USERS ||--o{ REFRESH_TOKENS : "refresh_tokens.user_id → users.id, ON DELETE CASCADE"
 
   SITES {
     uuid id PK
@@ -219,6 +221,25 @@ erDiagram
     double precision planned_hours "nullable"
     timestamptz assigned_at
   }
+  USERS {
+    uuid id PK
+    text email UK
+    text password_hash
+    text full_name
+    user_role role
+    uuid technician_id FK "nullable"
+    integer token_version
+    boolean is_active
+    timestamptz created_at
+    timestamptz updated_at
+  }
+  REFRESH_TOKENS {
+    uuid id PK
+    uuid user_id FK
+    integer token_version
+    timestamptz expires_at
+    timestamptz created_at
+  }
 ```
 
 - **`sites`** — площадки. `code` уникален, есть индекс по `region`.
@@ -235,6 +256,16 @@ erDiagram
 - **`request_assignees`** — бригада заявки, составная PK
   `(request_id, technician_id)` и частичный уникальный индекс «не больше одного
   lead на заявку».
+- **`users`** — учётные записи. `email` уникален, `password_hash` хранит
+  только bcrypt-хеш, `technician_id` **nullable** и ссылается на специалиста из
+  справочника (нужен, чтобы ограничить смену статуса заявки теми, на которых
+  пользователь назначен). `token_version` — счётчик принудительного отзыва всех
+  ранее выданных access-токенов, `is_active` — признак блокировки учётной
+  записи администратором.
+- **`refresh_tokens`** — выданные refresh-токены. Строка удаляется при
+  использовании токена (ротация) и при выходе; по `user_id` можно отозвать все
+  сессии пользователя, по `token_version` — отсечь токены, выпущенные до смены
+  пароля. Индекс по `expires_at` обслуживает очистку истёкших записей.
 
 ### Нормализация и денормализация
 
@@ -268,6 +299,11 @@ erDiagram
 | `request_status` | `new`, `in_progress`, `done`, `rejected` |
 | `assignee_role` | `lead`, `member` |
 
+Шестой тип `user_role` (`viewer`, `technician`, `admin`) создаёт миграция
+пользователей: применённые миграции не переписываются, поэтому дописывать их
+список нельзя. Полный перечень для сверки схемы с моделями — `ALL_ENUM_TYPES`
+в `src/db/migrations/enum-types.ts`.
+
 Ограничения целостности:
 
 | Таблица | Ограничение |
@@ -279,6 +315,8 @@ erDiagram
 | `maintenance_requests` | `CHECK (status IN ('done','rejected') = (closed_at IS NOT NULL))`, `FK equipment_id → equipment(id) ON DELETE CASCADE` |
 | `request_status_history` | `CHECK (previous_status IS NULL OR previous_status <> new_status)`, триггер `request_status_history_no_update`, `FK → maintenance_requests(id) ON DELETE CASCADE` |
 | `request_assignees` | `PK (request_id, technician_id)`, `CHECK (planned_hours IS NULL OR planned_hours >= 0)`, частичный `UNIQUE (request_id) WHERE role = 'lead'`, `FK → maintenance_requests(id) ON DELETE CASCADE`, `FK → technicians(id) ON DELETE RESTRICT` |
+| `users` | `UNIQUE (email)`, `CHECK (token_version >= 0)`, частичный `UNIQUE (technician_id) WHERE technician_id IS NOT NULL`, `FK → technicians(id) ON DELETE SET NULL` |
+| `refresh_tokens` | `CHECK (token_version >= 0)`, `FK → users(id) ON DELETE CASCADE` |
 
 Индексы:
 
@@ -290,6 +328,8 @@ erDiagram
 | `maintenance_requests` | `maintenance_requests_equipment_id_idx`, `_status_idx`, `_priority_idx`, `_created_at_idx (DESC)` |
 | `request_status_history` | `request_status_history_request_changed_idx (request_id, changed_at DESC)`, `request_status_history_changed_at_idx (changed_at DESC)` |
 | `request_assignees` | `request_assignees_single_lead_idx` (частичный уникальный), `request_assignees_technician_id_idx` |
+| `users` | `users_role_idx`, уникальный по `technician_id` (частичный) |
+| `refresh_tokens` | `refresh_tokens_user_id_idx`, `refresh_tokens_expires_at_idx` |
 
 ### Время и часовые пояса
 
@@ -328,6 +368,8 @@ erDiagram
 | `20260928000700-create-request-status-history` | таблица журнала, 2 индекса, функция и триггер `BEFORE UPDATE` | `DROP TRIGGER`, `DROP FUNCTION`, `DROP TABLE` |
 | `20260928000800-create-request-assignees` | таблица `request_assignees`, частичный уникальный индекс, `CHECK` | `DROP TABLE` |
 | `20260928000900-grant-app-role-privileges` | `GRANT` роли приложения + `ALTER DEFAULT PRIVILEGES` | `REVOKE` и отзыв default privileges |
+| `20261001000100-create-users` | тип `user_role`, таблица `users`, 2 индекса, уникальность, `CHECK` | `DROP TABLE`, `DROP TYPE` |
+| `20261001000200-create-refresh-tokens` | таблица `refresh_tokens`, 2 индекса, `CHECK` | `DROP TABLE` |
 
 ```bash
 npm run db:migrate          # применить неприменённые
@@ -875,8 +917,8 @@ src/
   db/
     client.ts              # Sequelize (роль app/migration), waitForDatabase
     migrator.ts            # umzug
-    models/                # модели Sequelize (7 таблиц)
-    migrations/            # 9 миграций up/down
+    models/                # модели Sequelize (9 таблиц)
+    migrations/            # 11 миграций up/down
     cli/                   # migrate, seed, verify-schema, rollback-demo
   lib/                     # logger, http-logger, context (AsyncLocalStorage)
 db/init/                   # создание роли app_rw при инициализации кластера

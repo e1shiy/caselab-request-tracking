@@ -3,7 +3,7 @@ import { DataTypes, QueryTypes, type Model, type ModelStatic, type Sequelize } f
 import { logger } from '../../lib/logger.js';
 import { createSequelize, waitForDatabase } from '../client.js';
 import { initModels } from '../models/index.js';
-import { ENUM_TYPES } from '../migrations/enum-types.js';
+import { ALL_ENUM_TYPES } from '../migrations/enum-types.js';
 
 interface ColumnInfo {
   attname: string;
@@ -111,7 +111,7 @@ async function verifyEnumTypes(sequelize: Sequelize): Promise<string[]> {
   );
   const byName = new Map(rows.map((row) => [row.type_name, row.enum_values ?? []]));
 
-  for (const { name, values } of ENUM_TYPES) {
+  for (const { name, values } of ALL_ENUM_TYPES) {
     const actual = byName.get(name);
     if (!actual) {
       problems.push(`тип перечисления ${name} отсутствует в базе`);
@@ -124,7 +124,7 @@ async function verifyEnumTypes(sequelize: Sequelize): Promise<string[]> {
     }
   }
   for (const name of byName.keys()) {
-    if (!ENUM_TYPES.some((type) => type.name === name)) {
+    if (!ALL_ENUM_TYPES.some((type) => type.name === name)) {
       problems.push(`в базе есть незаявленный тип перечисления ${name}`);
     }
   }

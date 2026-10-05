@@ -2,8 +2,10 @@ import type { Equipment, EquipmentCard } from '../../domain/equipment.js';
 import type { Site } from '../../domain/site.js';
 import type { MaintenanceRequest } from '../../domain/request.js';
 import type { RequestCard } from '../request-repository.js';
+import type { RefreshTokenRecord } from '../user-repository.js';
 import type { RequestStatusHistoryEntry } from '../../domain/status-history.js';
 import type { AssigneeView, Technician } from '../../domain/technician.js';
+import type { StoredUser } from '../../domain/user.js';
 
 type EquipmentRow = {
   id: string;
@@ -183,5 +185,47 @@ export function toSite(row: SiteRow): Site {
     longitude: row.longitude,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
+  };
+}
+
+export type UserRow = {
+  id: string;
+  email: string;
+  passwordHash: string;
+  fullName: string;
+  role: StoredUser['role'];
+  technicianId: string | null;
+  tokenVersion: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export function toUser(row: UserRow): StoredUser {
+  return {
+    id: row.id,
+    email: row.email,
+    passwordHash: row.passwordHash,
+    fullName: row.fullName,
+    role: row.role,
+    technicianId: row.technicianId,
+    tokenVersion: row.tokenVersion,
+    isActive: row.isActive,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+export function toRefreshToken(row: {
+  id: string;
+  userId: string;
+  tokenVersion: number;
+  expiresAt: Date;
+}): RefreshTokenRecord {
+  return {
+    id: row.id,
+    userId: row.userId,
+    tokenVersion: row.tokenVersion,
+    expiresAt: row.expiresAt,
   };
 }
