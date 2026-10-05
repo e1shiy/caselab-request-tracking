@@ -18,6 +18,9 @@ const envSchema = z
           .map((origin) => origin.trim())
           .filter((origin) => origin.length > 0),
       ),
+    // Swagger UI и спецификация: в production их обычно закрывают nginx,
+    // но сам сервер оставляет возможность выключить документацию.
+    DOCS_ENABLED: z.stringbool().default(true),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
     LOGIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(300_000),
