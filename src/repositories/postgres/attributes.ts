@@ -73,3 +73,18 @@ export const requestAssigneeColumns = [
   'plannedHours',
   'assignedAt',
 ] as const;
+
+export const userColumns = [
+  'id',
+  'email',
+  'passwordHash',
+  'fullName',
+  'role',
+  'technicianId',
+  'tokenVersion',
+  'isActive',
+  'createdAt',
+  'updatedAt',
+] as const;
+
+export const refreshTokenColumns = ['id', 'userId', 'tokenVersion', 'expiresAt', 'createdAt'] as const;

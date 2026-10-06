@@ -6,6 +6,7 @@ import {
   EquipmentPassportModel,
 } from './equipment-passport.model.js';
 import { defineMaintenanceRequestModel, MaintenanceRequestModel } from './maintenance-request.model.js';
+import { defineRefreshTokenModel, RefreshTokenModel } from './refresh-token.model.js';
 import { defineRequestAssigneeModel, RequestAssigneeModel } from './request-assignee.model.js';
 import {
   defineRequestStatusHistoryModel,
@@ -13,15 +14,18 @@ import {
 } from './request-status-history.model.js';
 import { defineSiteModel, SiteModel } from './site.model.js';
 import { defineTechnicianModel, TechnicianModel } from './technician.model.js';
+import { defineUserModel, UserModel } from './user.model.js';
 
 export {
   EquipmentModel,
   EquipmentPassportModel,
   MaintenanceRequestModel,
+  RefreshTokenModel,
   RequestAssigneeModel,
   RequestStatusHistoryModel,
   SiteModel,
   TechnicianModel,
+  UserModel,
 };
 
 export function initModels(sequelize: Sequelize): void {
@@ -32,6 +36,8 @@ export function initModels(sequelize: Sequelize): void {
   defineMaintenanceRequestModel(sequelize);
   defineRequestStatusHistoryModel(sequelize);
   defineRequestAssigneeModel(sequelize);
+  defineUserModel(sequelize);
+  defineRefreshTokenModel(sequelize);
 
   SiteModel.hasMany(EquipmentModel, {
     foreignKey: 'siteId',
@@ -85,4 +91,10 @@ export function initModels(sequelize: Sequelize): void {
     foreignKey: 'technicianId',
     as: 'technician',
   });
+
+  UserModel.belongsTo(TechnicianModel, { foreignKey: 'technicianId', as: 'technician' });
+  TechnicianModel.hasOne(UserModel, { foreignKey: 'technicianId', as: 'user' });
+
+  RefreshTokenModel.belongsTo(UserModel, { foreignKey: 'userId', as: 'user' });
+  UserModel.hasMany(RefreshTokenModel, { foreignKey: 'userId', as: 'refreshTokens' });
 }
