@@ -4,6 +4,15 @@ import { pinoHttp, type Options } from 'pino-http';
 
 import { logger } from './logger.js';
 
+// Healthcheck'и и сбор метрик идут каждые несколько секунд: в access-логе они
+// только мешают. Недоступность базы фиксируется отдельным warn-сообщением
+// из /api/health/ready.
+const QUIET_PATHS = ['/api/health', '/metrics'];
+
+function isQuietPath(url: string): boolean {
+  return QUIET_PATHS.some((path) => url === path || url.startsWith(`${path}/`));
+}
+
 const options: Options = {
   logger,
   genReqId(req, res) {
@@ -22,7 +31,7 @@ const options: Options = {
     return 'info';
   },
   autoLogging: {
-    ignore: (req) => req.url === '/api/health',
+    ignore: (req) => isQuietPath(req.url ?? ''),
   },
 };
 

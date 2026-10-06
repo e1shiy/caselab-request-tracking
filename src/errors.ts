@@ -69,3 +69,9 @@ export class ForbiddenError extends AppError {
     super(message, { ...options, status: 403, code: 'FORBIDDEN' });
   }
 }
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message = 'Зависимость недоступна', options: Omit<AppErrorOptions, 'status' | 'code'> = {}) {
+    super(message, { ...options, status: 503, code: 'SERVICE_UNAVAILABLE' });
+  }
+}

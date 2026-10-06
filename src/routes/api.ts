@@ -19,12 +19,8 @@ import { createSitesRouter } from './sites.js';
 export function createApiRouter(storage: Storage): Router {
   const router = Router();
 
-  router.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
-
   // Вход и регистрация сознательно вне authenticate(): иначе зарегистрироваться
-  // было бы невозможно.
+  // было бы невозможно. /health смонтирован выше, до этой точки.
   router.use('/auth', createAuthRouter(storage));
 
   const requestService = new RequestService(storage.requests, storage.equipment, storage.transaction);
