@@ -2785,7 +2785,7 @@
     },
     {
       "key": "rateLimitMax",
-      "value": "100"
+      "value": "300"
     },
     {
       "key": "leadTechnicianId",
