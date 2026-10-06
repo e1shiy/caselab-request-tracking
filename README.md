@@ -479,6 +479,8 @@ ERROR:  request_status_history is append-only: UPDATE is forbidden
 | `GET` | `/api/health/live` | Liveness: процесс отвечает, без обращения к БД | 200 |
 | `GET` | `/api/health/ready` | Readiness: проверка соединения с PostgreSQL | 200, 503 |
 | `GET` | `/metrics` | Метрики Prometheus, без аутентификации | 200 |
+| `GET` | `/api/docs` | Swagger UI, без аутентификации; можно закрыть `DOCS_ENABLED=false` | 200 |
+| `GET` | `/api/docs/openapi.json` | Спецификация OpenAPI 3.1 | 200 |
 | `POST` | `/api/auth/register` | Регистрация; роль всегда `viewer` | 201, 422 |
 | `POST` | `/api/auth/login` | Вход, выдача access-токена и refresh-cookie | 200, 401, 422, 429 |
 | `POST` | `/api/auth/refresh` | Ротация refresh-токена по cookie | 200, 401 |
@@ -507,11 +509,11 @@ ERROR:  request_status_history is append-only: UPDATE is forbidden
 > Одиночные ресурсы возвращаются объектом напрямую. При 201 выдаётся
 > заголовок `Location`.
 
-Кроме `/api/health*`, `/api/auth/*` и `/metrics` все эндпоинты требуют
-заголовок `Authorization: Bearer <accessToken>`; без него — **401**.
-Health-эндпоинты и `/metrics` не требуют токена: их вызывает балансировщик и
-система мониторинга, а не пользователь. Доступ извне закрывает nginx
-(см. «DevOps»).
+Кроме `/api/health*`, `/api/auth/*`, `/metrics` и `/api/docs` все эндпоинты
+требуют заголовок `Authorization: Bearer <accessToken>`; без него — **401**.
+Health-эндпоинты, `/metrics` и документация токена не требуют: их вызывает
+балансировщик, система мониторинга и разработчик, а не пользователь. Доступ
+извне закрывает nginx (см. «DevOps»).
 
 ### Роли и права
 
@@ -993,6 +995,36 @@ https://github.com/advisories/GHSA-w5hq-g745-h8pq
  Sequelize (`npm audit fix --force` предлагает откат на `sequelize@3.30.0`),
 поэтому пакет зафиксирован на текущей версии и риск принят осознанно.
 
+## Документация API
+
+- `GET /api/docs` — Swagger UI: интерактивный список операций с возможностью
+  выполнить запрос («Try it out»).
+- `GET /api/docs/openapi.json` — спецификация OpenAPI 3.1 в JSON. Её можно
+  импортировать в Postman, Insomnia или сгенерировать клиент.
+- Спецификация описана вручную в `src/docs/openapi.ts`: zod-схемы проверяют
+  запрос, но не описывают ответ, а ответы различаются по кодам и ролям.
+  Альтернатива — генерировать документ из zod, но тогда описание операций
+  всё равно приходится дописывать руками.
+- Документация смонтирована **до** `authenticate()`: иначе нельзя было бы
+  открыть страницу, чтобы узнать, как получить токен. Закрыть её на
+  production можно двумя способами: `DOCS_ENABLED=false` или ограничением
+  `/api/docs` в nginx.
+- В Swagger UI есть поле **access-токен** прямо на странице: значение
+  кладётся в localStorage в том же формате, который читает Swagger UI
+  (`persistAuthorization`), поэтому после «Применить» все запросы уходят с
+  заголовком `Authorization: Bearer …`. Кнопка **Authorize** тоже работает.
+- `npm run docs:check` сверяет спецификацию с реальными маршрутами Express в
+  обе стороны: описанная операция должна существовать, и каждый маршрут
+  приложения должен быть описан. Проверка нужна потому, что роутеры и
+  спецификация лежат в разных файлах и иначе расходятся при первой же
+  новой операции. Служебные `/metrics` и `/api/docs/openapi.json` из
+  пользовательского описания исключены осознанно.
+
+```bash
+npm run docs:check
+# OpenAPI: 27 операций совпадают с маршрутами приложения (19 шаблонов маршрутов)
+```
+
 ## Health-check и метрики
 
 ### `/api/health/live` и `/api/health/ready`
@@ -1092,8 +1124,9 @@ src/
     auth-service.ts        # регистрация, вход, ротация и отзыв refresh-токенов
     access-control.ts      # правила ролей и назначения, чистые функции
   controllers/             # тонкие обработчики HTTP (включая auth-controller)
-  routes/                  # api/health/auth/equipment/requests/sites/reports
-                           # health.ts смонтирован вне authenticate()
+  routes/                  # api/health/docs/auth/equipment/requests/sites/reports
+                           # health.ts и docs.ts смонтированы вне authenticate()
+  docs/openapi.ts          # спецификация OpenAPI 3.1 (27 операций)
   schemas/                 # zod-схемы body/query/params (включая auth)
   middleware/              # validate, error-handler, rate-limit,
                            # authenticate, require-role, metrics
@@ -1157,9 +1190,9 @@ Sequelize освобождается, соединения не висят). П�
 ## Тестирование в Postman
 
 Коллекция в `docs/postman/caselab-requests.postman_collection.json`
-(63 test-скрипта, 14 pre-request-скриптов, 301 запрос — из них 63 из коллекции
-и 238 из вспомогательных вызовов и сценария 429 — и 121 проверка на прогон,
-0 ошибок). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
+(65 test-скриптов, 14 pre-request-скриптов, 294 запроса — из них 65 из
+коллекции и 229 из вспомогательных вызовов и сценария 429 — и 123 проверки на
+прогон, 0 ошибок). Токен подставляется на уровне коллекции: Bearer `{{accessToken}}`,
 который получает первый запрос группы **Auth**.
 
 ```bash
@@ -1197,6 +1230,13 @@ npx newman run docs/postman/caselab-requests.postman_collection.json
    Значение по умолчанию поднято с 100 до **300** запросов в минуту: при
    100 полный прогон коллекции успевал исчерпать квоту на середине, и
    результат зависел от порядка запросов.
+
+Добавлено при внедрении документации:
+
+- два запроса в группе **Система**: `/api/docs` (ожидается HTML со
+  `swagger-ui`) и `/api/docs/openapi.json` (ожидается `openapi: 3.1.0`,
+  схема `bearerAuth` и путь `/api/requests/{id}/status`);
+- `npm run docs:check` как проверка актуальности спецификации.
 
 Добавлено при внедрении health-check и метрик:
 

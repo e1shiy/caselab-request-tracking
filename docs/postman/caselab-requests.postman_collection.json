@@ -136,6 +136,74 @@
               }
             }
           ]
+        },
+        {
+          "name": "Swagger UI (ожидаем 200 и HTML)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/docs/",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "docs"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('страница документации отдаётся без токена', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.headers.get('Content-Type')).to.include('text/html');",
+                  "  pm.expect(pm.response.text()).to.include('swagger-ui');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Спецификация OpenAPI (ожидаем 200)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/docs/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "docs",
+                "openapi.json"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('спецификация доступна и описывает bearerAuth', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const spec = pm.response.json();",
+                  "  pm.expect(spec.openapi).to.equal('3.1.0');",
+                  "  pm.expect(spec.components.securitySchemes.bearerAuth.scheme).to.equal('bearer');",
+                  "  pm.expect(Object.keys(spec.paths).length).to.be.above(20);",
+                  "  pm.expect(spec.paths['/api/requests/{id}/status']).to.be.ok;",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

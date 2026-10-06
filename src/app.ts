@@ -14,6 +14,7 @@ import { httpMetrics } from './middleware/metrics.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import type { Storage } from './repositories/index.js';
 import { createApiRouter } from './routes/api.js';
+import { createDocsRouter } from './routes/docs.js';
 import { createHealthRouter } from './routes/health.js';
 
 export function createApp(storage: Storage): Express {
@@ -53,6 +54,11 @@ export function createApp(storage: Storage): Express {
   });
 
   app.use('/api/health', createHealthRouter(storage));
+  // Документация открыта и смонтирована до authenticate(): иначе Swagger UI
+  // нельзя было бы открыть, чтобы узнать, как получить токен.
+  if (config.DOCS_ENABLED) {
+    app.use('/api/docs', createDocsRouter());
+  }
   app.use('/api', createApiRouter(storage));
 
   app.use((req: Request, _res: Response, next) => next(new NotFoundError('Эндпоинт не найден')));
