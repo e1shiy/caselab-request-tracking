@@ -24,7 +24,12 @@
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v",
     "docker:logs": "docker compose logs -f app",
-    "docker:ps": "docker compose ps"
+    "docker:ps": "docker compose ps",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/unit",
+    "test:integration": "node --experimental-vm-modules node_modules/jest/bin/jest.js tests/integration",
+    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage",
+    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -50,10 +55,13 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.20.4",
     "@types/pg": "^8.23.1",
     "@types/swagger-ui-express": "^4.1.8",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
   }
