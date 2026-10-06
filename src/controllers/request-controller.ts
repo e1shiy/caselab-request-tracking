@@ -1,4 +1,5 @@
 import { asyncHandler } from '../lib/async-handler.js';
+import { actorOf } from '../middleware/require-role.js';
 import type {
   IdParams,
   RequestAssigneeParams,
@@ -26,7 +27,7 @@ export class RequestController {
 
   create = asyncHandler(async (req, res) => {
     const body = req.valid.body as RequestCreateInput;
-    const request = await this.service.create(body);
+    const request = await this.service.create(body, actorOf(req));
     res.status(201).location(`/api/requests/${request.id}`).json(request);
   });
 
@@ -43,24 +44,24 @@ export class RequestController {
   update = asyncHandler(async (req, res) => {
     const { id } = req.valid.params as IdParams;
     const body = req.valid.body as RequestUpdateInput;
-    res.json(await this.service.update(id, body));
+    res.json(await this.service.update(id, body, actorOf(req)));
   });
 
   changeStatus = asyncHandler(async (req, res) => {
     const { id } = req.valid.params as IdParams;
     const body = req.valid.body as RequestStatusBody;
-    res.json(await this.service.changeStatus(id, body));
+    res.json(await this.service.changeStatus(id, body, actorOf(req)));
   });
 
   assignCrew = asyncHandler(async (req, res) => {
     const { id } = req.valid.params as IdParams;
     const body = req.valid.body as RequestAssigneesBody;
-    res.status(201).json(await this.service.assignCrew(id, body));
+    res.status(201).json(await this.service.assignCrew(id, body, actorOf(req)));
   });
 
   removeAssignee = asyncHandler(async (req, res) => {
     const { id, technicianId } = req.valid.params as RequestAssigneeParams;
-    res.json(await this.service.removeAssignee(id, technicianId));
+    res.json(await this.service.removeAssignee(id, technicianId, actorOf(req)));
   });
 
   remove = asyncHandler(async (req, res) => {

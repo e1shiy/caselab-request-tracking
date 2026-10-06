@@ -1,3 +1,4 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import type { Express, Request, Response } from 'express';
@@ -15,6 +16,10 @@ import { createApiRouter } from './routes/api.js';
 export function createApp(storage: Storage): Express {
   const app = express();
 
+  // За nginx ровно один обратный прокси: X-Forwarded-For и X-Forwarded-Proto
+  // от него считаются доверенными, поэтому req.ip — реальный адрес клиента.
+  app.set('trust proxy', config.TRUST_PROXY_HOPS);
+
   app.use(httpLogger);
   app.use(contextMiddleware);
 
@@ -23,8 +28,10 @@ export function createApp(storage: Storage): Express {
     cors({
       origin: config.CORS_ORIGINS,
       methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      credentials: true,
     }),
   );
+  app.use(cookieParser());
 
   app.use('/api', rateLimiter());
 
