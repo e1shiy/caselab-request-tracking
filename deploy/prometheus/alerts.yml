@@ -1,0 +1,122 @@
+# Правила считаются в Prometheus, а Grafana показывает их состояние.
+# Каждое правило проверяется вручную: см. Prometheus → Status → Rules.
+
+groups:
+  - name: availability
+    rules:
+      - alert: ServiceDown
+        expr: up{job="app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Приложение не отвечает
+          description: >-
+            Prometheus не может получить метрики приложения дольше двух минут.
+            Проверьте `docker compose ps app` и логи приложения.
+
+      - alert: DatabaseUnavailable
+        expr: app_database_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Приложение не видит базу
+          description: >-
+            /api/health/ready отдаёт 503: база недоступна или упала миграция.
+            Трафик не проходит, потому что healthcheck приложения проверяет
+            готовность, а не живость.
+
+  - name: errors
+    rules:
+      - alert: HighErrorRate
+        # Отношение 5xx ко всем ответам за 5 минут. Считаем по коду ответа,
+        # а не по уровню лога: в логи попадает и ожидаемый 4xx от злоумышленника.
+        expr: |
+          sum(rate(http_requests_total{job="app",status=~"5.."}[5m]))
+            /
+          clamp_min(sum(rate(http_requests_total{job="app"}[5m])), 0.001)
+            > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Доля ответов 5xx выше 5%
+          description: >-
+            Последние 5 минут сервис отдаёт больше 5% ошибок сервера.
+            Смотрите разбивку по маршрутам на дашборде Service overview.
+
+      - alert: NoTraffic
+        # Не запрос, а отсутствие запросов: тишина в проде почти всегда
+        # означает, что сломался балансировщик или прокси, а не «ночь».
+        expr: sum(rate(http_requests_total{job="app"}[15m])) == 0
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: Нет запросов к приложению 30 минут
+          description: >-
+            Ни одного запроса за 15-минутное окно. Проверьте nginx
+            (docker compose logs nginx) и сетевую связность.
+
+  - name: latency
+    rules:
+      - alert: SlowRequests
+        # p95 по всем маршрутам: хвост заметен раньше, чем вырастет среднее.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="app"}[5m]))
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: p95 времени ответа выше 1 секунды
+          description: >-
+            Долгие ответы дольше 10 минут. Проверьте, не ходит ли приложение в
+            погодный сервис (WEATHER_* таймауты) и не блокирует ли база.
+
+      - alert: RequestQueueGrowing
+        # Метрика моментальная, поэтому берём среднее за 5 минут: иначе
+        # всплеск в пару секунд поднимал бы alert.
+        expr: avg_over_time(http_requests_in_flight{job="app"}[5m]) > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Очередь запросов выше 50
+          description: >-
+            В среднем больше 50 запросов одновременно в обработке. Пора добавлять
+            реплики или искать медленный маршрут на дашборде.
+
+  - name: resources
+    rules:
+      - alert: HighHeapUsage
+        # Метрики процесса из prom-client: heap_total — сколько V8 выделил,
+        # used — сколько занято. go_memstats_* здесь неприменим, сервис на Node.
+        expr: |
+          (1 - (app_nodejs_heap_size_used_bytes{job="app"}
+            / app_nodejs_heap_size_total_bytes{job="app"})) > 0.85
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Свободно меньше 15% кучи V8
+          description: >-
+            Приложение скоро упрётся в OOM. Проверьте утечку и размер
+            connection pool (DB_POOL_MAX).
+
+      - alert: CpuSaturation
+        # Доля процессорного времени процесса: prom-client отдаёт в секундах
+        # CPU, поэтому делим на реальное время между сэмплами.
+        expr: |
+          rate(app_process_cpu_seconds_total{job="app"}[5m]) > 0.9
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Приложение использует больше 0.9 ядра
+          description: >-
+            Узкое место в самом приложении: погодный сервис, сериализация или
+            тяжёлые отчёты. Сравните CPU с лимитом контейнера.

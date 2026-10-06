@@ -1,0 +1,29 @@
+# Prometheus забирает метрики приложения изнутри сети compose: снаружи
+# /metrics закрыт nginx. Интервал 15s совпадает с healthcheck-интервалом
+# контейнера, чтобы данные о готовности не расходились с фактическим
+# состоянием.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 5s
+  evaluation_interval: 30s
+  # ${ENVIRONMENT} раскрывается только с флагом expand-external-labels:
+  # Prometheus не подставляет переменные окружения в конфигурацию.
+  external_labels:
+    stack: caselab-request-tracking
+    env: ${ENVIRONMENT}
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: app
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["app:3000"]
+        labels:
+          service: request-tracking
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["127.0.0.1:9090"]

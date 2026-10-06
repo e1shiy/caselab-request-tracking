@@ -1,0 +1,20 @@
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      # Метрики приложения уже с префиксом app_, но дефолтный шаблон Grafana
+      # начинается с имени job: показываем в подписи приоритетное имя.
+      httpMethod: POST
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 3.15.0
+      incrementalQuerying: true
+      cacheLevel: High

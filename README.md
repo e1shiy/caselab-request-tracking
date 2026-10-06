@@ -924,6 +924,73 @@ GET /api/equipment/:id/weather
 делает `JOIN` с площадками. Если погодный API недоступен, сервис не падает и
 отвечает **502** `EXTERNAL_API_ERROR`.
 
+## Мониторинг
+
+Prometheus забирает метрики приложения изнутри сети compose (снаружи `/metrics`
+закрыт nginx), Grafana показывает их на дашборде и считает свои правила.
+Оба сервиса слушают только loopback:
+
+```bash
+docker compose up -d prometheus grafana   # подни только мониторинг
+docker compose ps prometheus grafana
+
+# Prometheus
+curl -s http://127.0.0.1:9090/api/v1/targets | jq '.data.activeTargets[] | {job: .labels.job, health}'
+curl -s http://127.0.0.1:9090/api/v1/rules   | jq '.data.groups[].rules[] | {name, state, health}'
+
+# Grafana: http://localhost:3001 (логин из GRAFANA_ADMIN_USER / GRAFANA_ADMIN_PASSWORD)
+```
+
+Всё настраивается файлами, руками ничего править не нужно:
+
+| Файл | Что делает |
+| --- | --- |
+| `deploy/prometheus/prometheus.yml` | Сбор метрик `app` раз в 15s (столько же, сколько healthcheck контейнера) и самого Prometheus |
+| `deploy/prometheus/alerts.yml` | 8 правил в группах availability / errors / latency / resources |
+| `deploy/grafana/provisioning/datasources/prometheus.yml` | Источник данных с фиксированным `uid: prometheus` |
+| `deploy/grafana/provisioning/dashboards/dashboards.yml` | Провайдер дашбордов из `/var/lib/grafana/dashboards` |
+| `deploy/grafana/provisioning/alerting/alerting.yml` | 3 правила unified alerting |
+| `deploy/grafana/dashboards/service-overview.json` | Дашборд из 12 панелей, домашний по умолчанию |
+
+Дашборд **Service overview** начинается с доступности и состояния базы,
+дальше — rpm, доля 5xx, p95, очередь и время работы процесса, затем графики
+RPS по маршрутам, коды ответов, квантили задержки, куча и RSS, ЦП и задержка
+event loop. Панели времени отклика переключают цвет по порогам (p95 желтеет
+с 0.5 с, краснеет с 1 с; доля 5xx — с 1% и 5%), поэтому «жёлтый» читается
+сразу. Переменная `route` фильтрует все запросные панели сразу; аннотация
+отмечает перезапуски процесса — по ней видно, что деплой прошёл.
+
+Правила Prometheus:
+
+| Алерт | Условие | Severity |
+| --- | --- | --- |
+| `ServiceDown` | `up{job="app"} == 0` дольше 2 минут | critical |
+| `DatabaseUnavailable` | `app_database_up == 0` дольше минуты | critical |
+| `HighErrorRate` | доля ответов 5xx выше 5% за 5 минут | warning |
+| `NoTraffic` | нет ни одного запроса за 15 минут | info |
+| `SlowRequests` | p95 всех маршрутов выше 1 с дольше 10 минут | warning |
+| `RequestQueueGrowing` | среднее `http_requests_in_flight` выше 50 | warning |
+| `HighHeapUsage` | занято больше 85% кучи V8 | warning |
+| `CpuSaturation` | процесс использует больше 0.9 ядра | warning |
+
+Три из них продублированы в Grafana, чтобы видеть состояние и историю без
+Prometheus Alertmanager: недоступность приложения, недоступность базы и
+p95 выше секунды. Условия те же, `for` — те же.
+
+Проверено на этой машине: оба target'а Prometheus `up`, все 8 правил
+`health=ok`, дашборд и datasource загрузились, 15 запросов дашборда возвращают
+данные. Алерты проверены не «на глаз», а по факту падений:
+
+- `docker compose stop db` → через минуту сработал `DatabaseUnavailable`
+  (critical), `/api/health/ready` отдавал 503, `/api/health/live` — 200;
+  после `docker compose start db` алерт снялся, а `HighErrorRate` на
+  пять минут поднялся сам — 503 во время падения действительно были;
+  сейчас активных алертов нет;
+- метрики в правилах сверены с фактическими именами: приложение на Node,
+  поэтому вместо `go_memstats_*` используется `app_nodejs_heap_size_used_bytes`
+  и `app_process_cpu_seconds_total`. Неправильное имя не даёт ошибки в
+  конфиге, но правило молча никогда не сработает.
+
 ## Прокси nginx
 
 Публичная точка входа — контейнер nginx. Наружу открыт только порт 80
@@ -1248,8 +1315,10 @@ db/init/                   # создание роли app_rw при иници�
 docs/postman/              # коллекция Postman
 Dockerfile                 # multi-stage сборка: build → prod-deps → runtime (node:24)
 .dockerignore              # в образ не попадают .env, node_modules и dist с хоста
-compose.yaml               # db, migrate (one-shot), app, nginx; мониторинг — ниже
+compose.yaml               # db, migrate (one-shot), app, nginx, prometheus, grafana
 deploy/nginx/              # конфигурация прокси (nginx.conf, conf.d/app.conf, html)
+deploy/prometheus/         # prometheus.yml и alerts.yml
+deploy/grafana/            # provisioning (datasources, dashboards, alerting) + дашборд
 ```
 
 `sync({ force: true })` не используется нигде: схема меняется только
