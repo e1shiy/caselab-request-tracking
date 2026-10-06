@@ -1,4 +1,57 @@
-name: caselab-request-tracking
+# Сборка и запуск сервиса в контейнерах. Открытые наружу порты — только у
+# nginx; приложение, база и система мониторинга живут во внутренней сети.
+# Отдельный сервис migrate прогоняет миграции и сид до старта приложения:
+# иначе первый запрос к пустой схеме падал бы с ошибкой.
+
+x-app-env: &app-env
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  HOST: 0.0.0.0
+  PORT: 3000
+  TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-1}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+  DOCS_ENABLED: ${DOCS_ENABLED:-true}
+  RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+  RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-300}
+  BODY_LIMIT: ${BODY_LIMIT:-100kb}
+  WEATHER_API_URL: ${WEATHER_API_URL:-https://api.open-meteo.com/v1/forecast}
+  REQUEST_TIMEOUT_MS: ${REQUEST_TIMEOUT_MS:-5000}
+  WEATHER_FORECAST_DAYS: ${WEATHER_FORECAST_DAYS:-5}
+  WEATHER_MAX_WIND_KMPH: ${WEATHER_MAX_WIND_KMPH:-15}
+  WEATHER_ALLOWED_PRECIPITATION_MM: ${WEATHER_ALLOWED_PRECIPITATION_MM:-0}
+  DB_HOST: db
+  DB_PORT: 5432
+  DB_NAME: ${DB_NAME:?задайте DB_NAME в .env}
+  DB_USER: ${DB_USER:?задайте DB_USER в .env}
+  DB_PASSWORD: ${DB_PASSWORD:?задайте DB_PASSWORD в .env}
+  DB_MIGRATION_USER: ${DB_MIGRATION_USER:?задайте DB_MIGRATION_USER в .env}
+  DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:?задайте DB_MIGRATION_PASSWORD в .env}
+  DB_CONNECT_RETRIES: ${DB_CONNECT_RETRIES:-10}
+  DB_RETRY_BASE_DELAY_MS: ${DB_RETRY_BASE_DELAY_MS:-500}
+  # Секреты обязательны: без них compose останавливается сразу, а не после
+  # падения контейнера на старте. Сгенерировать: openssl rand -hex 32
+  JWT_SECRET: ${JWT_SECRET:?задайте JWT_SECRET в .env (openssl rand -hex 32)}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?задайте JWT_REFRESH_SECRET в .env (openssl rand -hex 32)}
+  ACCESS_TOKEN_TTL_SEC: ${ACCESS_TOKEN_TTL_SEC:-900}
+  REFRESH_TOKEN_TTL_SEC: ${REFRESH_TOKEN_TTL_SEC:-604800}
+  REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-refresh_token}
+  REFRESH_COOKIE_SECURE: ${REFRESH_COOKIE_SECURE:-true}
+  COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+  BCRYPT_ROUNDS: ${BCRYPT_ROUNDS:-12}
+  LOGIN_RATE_LIMIT_WINDOW_MS: ${LOGIN_RATE_LIMIT_WINDOW_MS:-300000}
+  LOGIN_RATE_LIMIT_MAX: ${LOGIN_RATE_LIMIT_MAX:-10}
+  DB_POOL_MAX: ${DB_POOL_MAX:-10}
+  DB_POOL_IDLE_MS: ${DB_POOL_IDLE_MS:-30000}
+  DB_POOL_ACQUIRE_MS: ${DB_POOL_ACQUIRE_MS:-5000}
+  DB_LOG_QUERIES: ${DB_LOG_QUERIES:-false}
+  # Демо-пользователи заполняются только при SEED_USERS=true.
+  SEED_USERS: ${SEED_USERS:-false}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+  SEED_TECHNICIAN_EMAIL: ${SEED_TECHNICIAN_EMAIL:-}
+  SEED_TECHNICIAN_PASSWORD: ${SEED_TECHNICIAN_PASSWORD:-}
+  SEED_VIEWER_EMAIL: ${SEED_VIEWER_EMAIL:-}
+  SEED_VIEWER_PASSWORD: ${SEED_VIEWER_PASSWORD:-}
 
 services:
   db:
@@ -13,6 +66,7 @@ services:
       APP_DB_USER: ${DB_USER}
       APP_DB_PASSWORD: ${DB_PASSWORD}
     ports:
+      # Наружу отдаём только для отладки из хоста (psql, db:verify).
       - "127.0.0.1:5432:5432"
     volumes:
       # PostgreSQL 18: PGDATA версионный (/var/lib/postgresql/18/docker), и объявленный
@@ -27,6 +81,49 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  migrate:
+    build:
+      context: .
+      target: runtime
+    image: caselab-request-tracking:local
+    environment:
+      <<: *app-env
+    # Миграции и сид идут отдельным контейнером: у них роль с правом DDL,
+    # а приложение работает на роли без права менять схему.
+    command: ["sh", "-c", "node dist/db/cli/migrate.js up && node dist/db/cli/seed.js"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    image: caselab-request-tracking:local
+    environment:
+      <<: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        # Миграции должны завершиться до первого запроса к схеме.
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      # Готовность, а не живость: без базы балансировщик не должен слать трафик.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   pgdata:

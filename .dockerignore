@@ -1,0 +1,13 @@
+# Собирается только то, что нужно в образе: исходники, node_modules и
+# локальное окружение наружу не попадают.
+.git
+.gitignore
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+*.log
+/tmp
+docs/postman/*.json
