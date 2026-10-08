@@ -172,44 +172,44 @@ ERROR:  permission denied for schema public
 
 ```mermaid
 erDiagram
-  SITES ||--o{ EQUIPMENT : "equipment.site_id → sites.id, ON DELETE RESTRICT"
-  EQUIPMENT ||--o| EQUIPMENT_PASSPORTS : "equipment_passports.equipment_id → equipment.id, ON DELETE CASCADE"
-  EQUIPMENT ||--o{ MAINTENANCE_REQUESTS : "maintenance_requests.equipment_id → equipment.id, ON DELETE CASCADE"
-  MAINTENANCE_REQUESTS ||--o{ REQUEST_STATUS_HISTORY : "request_status_history.request_id → maintenance_requests.id, ON DELETE CASCADE"
-  MAINTENANCE_REQUESTS ||--o{ REQUEST_ASSIGNEES : "request_assignees.request_id → maintenance_requests.id, ON DELETE CASCADE"
-  TECHNICIANS ||--o{ REQUEST_ASSIGNEES : "request_assignees.technician_id → technicians.id, ON DELETE RESTRICT"
-  TECHNICIANS ||--o| USERS : "users.technician_id → technicians.id, ON DELETE SET NULL"
-  USERS ||--o{ REFRESH_TOKENS : "refresh_tokens.user_id → users.id, ON DELETE CASCADE"
+  SITES ||--o{ EQUIPMENT : "site_id → sites.id, ON DELETE RESTRICT"
+  EQUIPMENT ||--o| EQUIPMENT_PASSPORTS : "equipment_id → equipment.id, ON DELETE CASCADE"
+  EQUIPMENT ||--o{ MAINTENANCE_REQUESTS : "equipment_id → equipment.id, ON DELETE CASCADE"
+  MAINTENANCE_REQUESTS ||--o{ REQUEST_STATUS_HISTORY : "request_id → maintenance_requests.id, ON DELETE CASCADE"
+  MAINTENANCE_REQUESTS ||--o{ REQUEST_ASSIGNEES : "request_id → maintenance_requests.id, ON DELETE CASCADE"
+  TECHNICIANS ||--o{ REQUEST_ASSIGNEES : "technician_id → technicians.id, ON DELETE RESTRICT"
+  TECHNICIANS ||--o| USERS : "technician_id → technicians.id, ON DELETE SET NULL"
+  USERS ||--o{ REFRESH_TOKENS : "user_id → users.id, ON DELETE CASCADE"
 
   SITES {
     uuid id PK
     text name
     text code UK
     text region
-    double precision latitude
-    double precision longitude
+    float latitude
+    float longitude
     timestamptz created_at
     timestamptz updated_at
   }
   EQUIPMENT {
     uuid id PK
-    uuid site_id FK "nullable"
+    uuid site_id FK
     text name
     equipment_type type
     text serial_number UK
-    double precision latitude
-    double precision longitude
+    float latitude
+    float longitude
     equipment_status status
     date installed_at
     timestamptz created_at
     timestamptz updated_at
   }
   EQUIPMENT_PASSPORTS {
-    uuid equipment_id "PK, FK"
+    uuid equipment_id PK, FK
     text manufacturer
     text model
-    double precision rated_power_kw
-    date last_verified_at "nullable"
+    float rated_power_kw
+    date last_verified_at
     timestamptz created_at
     timestamptz updated_at
   }
@@ -228,26 +228,26 @@ erDiagram
     text description
     request_priority priority
     request_status status
-    timestamptz planned_at "nullable"
+    timestamptz planned_at
     text author
-    timestamptz closed_at "nullable"
+    timestamptz closed_at
     timestamptz created_at
     timestamptz updated_at
   }
   REQUEST_STATUS_HISTORY {
     uuid id PK
     uuid request_id FK
-    request_status previous_status "nullable"
+    request_status previous_status
     request_status new_status
-    text changed_by "nullable"
-    text comment "nullable"
+    text changed_by
+    text change_comment
     timestamptz changed_at
   }
   REQUEST_ASSIGNEES {
-    uuid request_id "PK, FK"
-    uuid technician_id "PK, FK"
+    uuid request_id PK, FK
+    uuid technician_id PK, FK
     assignee_role role
-    double precision planned_hours "nullable"
+    float planned_hours
     timestamptz assigned_at
   }
   USERS {
@@ -256,7 +256,7 @@ erDiagram
     text password_hash
     text full_name
     user_role role
-    uuid technician_id FK "nullable"
+    uuid technician_id FK
     integer token_version
     boolean is_active
     timestamptz created_at
